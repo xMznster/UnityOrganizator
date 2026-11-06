@@ -7,7 +7,7 @@ struct DashboardView: View {
     @Environment(Router.self) private var router
     @Environment(SyncService.self) private var sync
     @Query(filter: #Predicate<VaultItem> { $0.deletedAt == nil }, sort: \VaultItem.modifiedAt, order: .reverse) private var items: [VaultItem]
-    @Query(filter: #Predicate<Folder> { $0.parent == nil }, sort: [SortDescriptor(\Folder.sortIndex), SortDescriptor(\Folder.name)]) private var projects: [Folder]
+    @Query(filter: #Predicate<Folder> { $0.parent == nil }, sort: [SortDescriptor<Folder>(\.sortIndex, order: .forward), SortDescriptor<Folder>(\.name, order: .forward)]) private var projects: [Folder]
     @State private var newScriptTarget: FolderBox?
     @State private var showImport = false
     @State private var newProject: FolderEditTarget?

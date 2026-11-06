@@ -106,7 +106,7 @@ struct FolderRow: View {
 struct VaultRootView: View {
     @Environment(VaultStore.self) private var store
     @Environment(Router.self) private var router
-    @Query(filter: #Predicate<Folder> { $0.parent == nil }, sort: [SortDescriptor(\Folder.sortIndex), SortDescriptor(\Folder.name)]) private var projects: [Folder]
+    @Query(filter: #Predicate<Folder> { $0.parent == nil }, sort: [SortDescriptor<Folder>(\.sortIndex, order: .forward), SortDescriptor<Folder>(\.name, order: .forward)]) private var projects: [Folder]
     @Query(filter: #Predicate<VaultItem> { $0.deletedAt == nil && $0.folder == nil }, sort: \VaultItem.modifiedAt, order: .reverse) private var inbox: [VaultItem]
     @Query(filter: #Predicate<VaultItem> { $0.deletedAt != nil }) private var trash: [VaultItem]
     @Query(filter: #Predicate<VaultItem> { $0.deletedAt == nil && $0.isFavorite }, sort: \VaultItem.modifiedAt, order: .reverse) private var favorites: [VaultItem]
