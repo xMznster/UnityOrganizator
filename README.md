@@ -17,9 +17,22 @@ Ideen, Prompts, technische Notizen und C#-Skripte unterwegs sammeln, bearbeiten,
 | **Sync iPhone ⇄ PC** | Zwei-Wege-Sync mit einem Ordner (iCloud Drive, Working Copy = echtes Git, OneDrive …) oder direkt mit einem GitHub-Repository; Konflikte verlieren nie Inhalte |
 | **Claude** | Agent-Skill-Generator (SKILL.md), Kontext-Pakete, CLAUDE.md-Snippet, MCP-Server für Claude Code (Suchen, Lesen, Prompts) |
 
+## Zwei Varianten
+
+| | **Web-App (PWA) – `web/`** | **Native App (Swift) – `App/`** |
+|---|---|---|
+| Installation | Safari → Teilen → „Zum Home-Bildschirm“ – **kein Mac nötig** | Mac mit Xcode 16+ |
+| Speicher | IndexedDB auf dem iPhone, offline | SwiftData auf dem iPhone, offline |
+| Sync zum PC | GitHub-Repository (ein Commit pro Sync) | Ordner (iCloud/Working Copy) oder GitHub |
+| Analyse/Export/Suche | gleiche Logik (JS-Port, gleiche Tests) | VaultKit (Swift) |
+
+**PWA lokal testen:** `cd web && python3 -m http.server 8000` → http://localhost:8000
+**PWA-Tests:** `node --test web/test/*.test.mjs`
+
 ## Projektstruktur
 
 ```
+web/                        PWA: index.html, styles.css, sw.js (offline), js/core (Analyse, Suche, Sync …), js/ui
 UnityVault.xcodeproj        Xcode-Projekt (Xcode 16+, öffnen & starten)
 App/                        iOS-App (SwiftUI + SwiftData)
   Models/                   Folder, VaultItem, Revision (SwiftData)
