@@ -2,7 +2,8 @@ import { store } from "./store.js";
 import { h, icon, toast } from "./ui/kit.js";
 import { dashboard, vaultRoot, folderView, inboxView, favoritesView, trashView, searchView, notFound } from "./ui/views-main.js";
 import { itemEditor } from "./ui/editors.js";
-import { workflowView, syncView, compilerView, settingsView, applyTheme, runSync } from "./ui/views-workflow.js";
+import { workflowView, syncView, compilerView, settingsView, runSync } from "./ui/views-workflow.js";
+import { applyThemes, bindStore } from "./themes.js";
 
 window.APP_VERSION = "1.0.0";
 
@@ -73,8 +74,9 @@ function trackViewport() {
 }
 
 async function main() {
-  applyTheme();
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme());
+  bindStore(store);
+  applyThemes();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyThemes());
   buildTabbar();
   trackViewport();
   try {
@@ -83,7 +85,7 @@ async function main() {
     document.getElementById("view").replaceChildren(h("div.empty", h("h3", "Speicher nicht verfügbar"), h("p.muted", "IndexedDB konnte nicht geöffnet werden (privates Surfen?). " + e.message)));
     return;
   }
-  applyTheme();
+  applyThemes();
   store.onToast = (t, undo) => toast(t, undo);
   store.onError = (t) => toast("⚠︎ " + t);
   let pending = false;

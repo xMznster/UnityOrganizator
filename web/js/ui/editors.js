@@ -137,7 +137,7 @@ export function scriptEditor(id) {
     h("button.icon-btn", { onclick: () => history.length > 1 ? history.back() : go("#/home"), "aria-label": "Zurück" }, icon("back", 22)),
     titleBtn,
     h("div.head-actions", h("button.icon-btn", { onclick: () => toggleFind(findBar.classList.contains("hidden")), "aria-label": "Suchen und Ersetzen" }, icon("search", 20)), moreBtn));
-  const root = h("section.screen.editor-screen.code-theme-" + store.getMeta("editor.theme", "night"), head, findBar, editor.el, status, acc);
+  const root = h("section.screen.editor-screen", head, findBar, editor.el, status, acc);
 
   function flush() {
     save.flush(editor.value);

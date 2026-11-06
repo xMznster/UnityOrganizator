@@ -3,7 +3,7 @@ const VERSION = "uv-1.0.0-1";
 const ASSETS = [
   "./", "index.html", "styles.css", "manifest.webmanifest",
   "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png",
-  "js/app.js", "js/store.js",
+  "js/app.js", "js/store.js", "js/themes.js",
   "js/ui/kit.js", "js/ui/common.js", "js/ui/code-editor.js", "js/ui/editors.js", "js/ui/views-main.js", "js/ui/views-workflow.js",
   "js/core/analyzer.js", "js/core/catalog.js", "js/core/claude.js", "js/core/editor-assist.js", "js/core/files.js",
   "js/core/lexer.js", "js/core/markdown.js", "js/core/search.js", "js/core/sync.js", "js/core/templates.js",

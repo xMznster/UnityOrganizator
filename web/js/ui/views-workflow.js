@@ -6,6 +6,7 @@ import { sync, GitHubRemote } from "../core/sync.js";
 import { ZipWriter, utf8, fromUtf8 } from "../core/files.js";
 import { skillFiles, normalizedSkillName, contextBundle, CLAUDE_MD_SNIPPET } from "../core/claude.js";
 import { highlightCSharp, esc } from "../core/markdown.js";
+import { APP_THEMES, CODE_THEMES, applyThemes, resolveAppTheme } from "../themes.js";
 
 const row = (ic, color, title, sub, onClick) => h("div.row", { onclick: onClick }, badge(ic, color), h("div.row-main", h("div.row-title", title), h("div.row-sub", sub)), icon("chevronRight", 16, "muted"));
 
@@ -207,9 +208,10 @@ export function settingsView() {
   const scripts = items.filter((i) => i.kind === "script");
   const demo = h("pre.peek.big", { html: highlightCSharp("void Update()\n{\n    // Vorschau\n    transform.Rotate(0f, 90f * Time.deltaTime, 0f);\n}") });
   content.append(
-    sectionHeader("Darstellung"),
-    h("div.form", sel("appearance", "App-Design", [["dark", "Dunkel"], ["light", "Hell"], ["system", "System"]], "dark", (v) => applyTheme(v)),
-      sel("editor.theme", "Editor-Theme", [["night", "Vault Night (dunkel)"], ["day", "Vault Day (hell)"]], "night")),
+    sectionHeader("App-Theme", Object.keys(APP_THEMES).length),
+    appThemePicker(),
+    sectionHeader("Code-Theme", Object.keys(CODE_THEMES).length),
+    codeThemePicker(),
     sectionHeader("Code-Editor"),
     h("div.form", num("editor.fontSize", "Schriftgröße (pt)", 14, 10, 28), num("editor.tabWidth", "Einrückung (Leerzeichen)", 4, 2, 8), tog("editor.useTabs", "Tabs statt Leerzeichen", false),
       tog("editor.autoPair", "Klammern & Anführungszeichen automatisch schließen", true), tog("editor.lineNumbers", "Zeilennummern", true), tog("editor.liveAnalysis", "Live-Analyse beim Tippen", true), demo),
@@ -229,8 +231,40 @@ export function settingsView() {
   return { root, tab: "settings" };
 }
 
-export function applyTheme(mode = store.getMeta("appearance", "dark")) {
-  const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#090B0F" : "#F3F4F7");
+const SAMPLE = 'using UnityEngine;\n\n// Spinnenbein-IK\npublic class SpiderLeg : MonoBehaviour\n{\n    [SerializeField] private float speed = 2.5f;\n    void Update() => transform.Rotate(0f, speed, 0f);\n}';
+
+function appThemePicker() {
+  const current = store.getMeta("theme.app", "vault-dark");
+  const grid = h("div.theme-grid");
+  const opt = (id, t, label) => {
+    const card = h("button.theme-card" + (current === id ? ".on" : ""), { onclick: () => { store.setMeta("theme.app", id); applyThemes(); store.emit(); } },
+      h("div.theme-mini", { style: { background: t.bg, borderColor: t.stroke } },
+        h("div.tm-bar", { style: { background: t.surface, borderColor: t.stroke } }, h("i", { style: { background: t.accent } }), h("i", { style: { background: t.text3, width: "38%" } })),
+        h("div.tm-row", h("i", { style: { background: t.script } }), h("i", { style: { background: t.text, width: "55%" } })),
+        h("div.tm-row", h("i", { style: { background: t.note } }), h("i", { style: { background: t.text2, width: "40%" } })),
+        h("div.tm-row", h("i", { style: { background: t.prompt } }), h("i", { style: { background: t.text2, width: "48%" } })),
+        h("div.tm-btn", { style: { background: t.accent } })),
+      h("div.theme-name", label || t.name));
+    return card;
+  };
+  const sys = resolveAppTheme("system");
+  grid.append(opt("system", APP_THEMES[sys], "System (hell/dunkel)"));
+  for (const [id, t] of Object.entries(APP_THEMES)) grid.append(opt(id, t));
+  return grid;
+}
+
+function codeThemePicker() {
+  const current = store.getMeta("theme.code", "match");
+  const appCode = APP_THEMES[resolveAppTheme(store.getMeta("theme.app", "vault-dark"))].code;
+  const html = highlightCSharp(SAMPLE);
+  const grid = h("div.theme-grid.code");
+  const opt = (id, t, label) => {
+    const vars = { "--ce-bg": t.bg, "--ce-text": t.text, "--tk-keyword": t.keyword, "--tk-contextualKeyword": t.keyword, "--tk-type": t.type, "--tk-method": t.method, "--tk-string": t.string,
+      "--tk-number": t.number, "--tk-comment": t.comment, "--tk-pre": t.pre, "--tk-op": t.op, "--tk-punct": t.punct, "--tk-invalid": t.invalid };
+    return h("button.theme-card" + (current === id ? ".on" : ""), { onclick: () => { store.setMeta("theme.code", id); applyThemes(); store.emit(); } },
+      h("pre.theme-code", { style: vars, html }), h("div.theme-name", label || t.name));
+  };
+  grid.append(opt("match", CODE_THEMES[appCode], "Passend zur App"));
+  for (const [id, t] of Object.entries(CODE_THEMES)) grid.append(opt(id, t));
+  return grid;
 }
