@@ -32,7 +32,7 @@
 | UI | SwiftUI, iOS 18 (Tab-API mit Such-Rolle, `@Observable`) | Native, modern; iPhone 16 Pro läuft mit aktuellem iOS |
 | Persistenz | **SwiftData** (SQLite) mit `autosave`, zusätzlich explizites `save()` nach jeder Mutation und beim Wechsel in den Hintergrund | Zuverlässig, offline, transaktional |
 | Kernlogik | **VaultKit** als eigenes Package ohne UIKit/SwiftData | Unter Linux & macOS testbar (45 Tests), wiederverwendbar (z. B. für eine spätere Mac-App) |
-| Editor | `UITextView` auf explizitem **TextKit-1**-Stack, Highlighting über **temporäre Attribute** des `NSLayoutManager`, nur für den sichtbaren Bereich ± 3000 Zeichen | Farbänderungen lösen kein Re-Layout aus → flüssig auch bei mehreren tausend Zeilen |
+| Editor | `UITextView` auf explizitem **TextKit-1**-Stack; Lexing pro Änderung (große Dateien entprellt), Farben als Attribute in einem einzigen `beginEditing/endEditing`-Block; Dateien > 80 000 Zeichen nur im sichtbaren Bereich ± 10 000 Zeichen (wird beim Scrollen nachgezogen); Zeilennummern zeichnet ein Gutter nur für sichtbare Zeilenfragmente | Flüssig auch bei mehreren tausend Zeilen (iOS bietet keine temporären Layout-Attribute wie macOS) |
 | Speichern im Editor | Text lebt im Controller; Persistenz entprellt (600 ms) + sofort bei Verlassen/Hintergrund | Kein SwiftUI-Re-Render pro Tastendruck, kein Datenverlust |
 | Analyse | Eigene Implementierung (Lexer + fehlertoleranter Parser + Regelwerk), läuft im Hintergrund-Task, entprellt | Roslyn ist auf iOS nicht lauffähig (siehe COMPILER.md) |
 | Löschen | Soft-Delete (Papierkorb); Ordner-Löschen verschiebt alle Inhalte rekursiv in den Papierkorb; Relationship `.nullify` statt `.cascade` für Items | „Keine Inhalte versehentlich überschreiben/löschen“ |
