@@ -36,7 +36,7 @@ public final class FolderRemote: SyncRemote {
             var rel = String(full.dropFirst(rootPath.count))
             while rel.hasPrefix("/") { rel.removeFirst() }
             let ext = (rel as NSString).pathExtension.lowercased()
-            guard FileCodec.syncedExtensions.contains(ext) || rel == SyncManifest.path else { continue }
+            guard FileCodec.syncedExtensions.contains(ext) || (rel.hasPrefix(".vault/") && ext == "json") else { continue }
             let data = try Data(contentsOf: url)
             result[rel] = SHA1.gitBlobID(data)
         }

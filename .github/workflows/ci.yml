@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vaultkit-linux:
+    name: VaultKit tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --package-path Packages/VaultKit
+
+  companion:
+    name: Companion (MCP server + Roslyn compiler)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: MCP server tests
+        run: node --test companion/mcp-server/test.mjs
+      - name: Compiler build & self-test
+        run: |
+          dotnet build companion/VaultCompiler -c Release
+          dotnet run --project companion/VaultCompiler -c Release -- selftest
+
+  ios:
+    name: iOS app (build + UI tests)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode version
+        run: |
+          ls /Applications | grep Xcode || true
+          LATEST=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LATEST" ]; then sudo xcode-select -s "$LATEST"; fi
+          xcodebuild -version
+      - name: VaultKit tests (macOS)
+        run: swift test --package-path Packages/VaultKit
+      - name: Build app for simulator
+        run: |
+          set -o pipefail
+          xcodebuild -project UnityVault.xcodeproj -scheme UnityVault \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: Show compiler errors
+        if: failure()
+        run: grep -E "error:" -A3 build.log | head -200 || true
+      - name: Build app for device (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project UnityVault.xcodeproj -scheme UnityVault \
+            -destination 'generic/platform=iOS' -configuration Release \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee device.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" device.log
+      - name: UI tests (iPhone 16 Pro simulator)
+        run: |
+          set -o pipefail
+          DEST=$(xcrun simctl list devices available | grep -m1 "iPhone 16 Pro (" | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          echo "Simulator: $DEST"
+          xcodebuild test -project UnityVault.xcodeproj -scheme UnityVault \
+            -destination "id=$DEST" -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee test.log | grep -E "Test Case|error:|TEST (SUCCEEDED|FAILED)|\*\* TEST" || true
+          grep -q "TEST SUCCEEDED" test.log
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p screenshots
+          if [ -d TestResults.xcresult ]; then
+            xcrun xcresulttool export attachments --path TestResults.xcresult --output-path screenshots 2>/dev/null || true
+          fi
+          ls -la screenshots | head -50
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-results
+          path: |
+            screenshots
+            build.log
+            test.log
+          if-no-files-found: ignore
