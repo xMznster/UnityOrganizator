@@ -45,7 +45,7 @@ public struct ZipWriter {
         entries.append(Entry(path: p, data: Data(), modified: Date()))
     }
 
-    static func uniquePath(_ p: String, used: Set<String>) -> String {
+    public static func uniquePath(_ p: String, used: Set<String>) -> String {
         guard used.contains(p.lowercased()) else { return p }
         let ns = p as NSString
         let ext = ns.pathExtension
