@@ -64,8 +64,11 @@ final class UnityVaultUITests: XCTestCase {
         let value = editor.value as? String ?? ""
         XCTAssertTrue(value.contains("public class \(name) : MonoBehaviour"), "Template not rendered: \(value.prefix(200))")
         // Introduce a syntax error and wait for the live analysis.
-        editor.tap()
-        editor.typeText("int broken = 5\n")
+        sleep(1)
+        editor.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.15)).tap()
+        sleep(1)
+        if !(editor.value(forKey: "hasKeyboardFocus") as? Bool ?? false) { editor.tap(); sleep(1) }
+        app.typeText("int broken = 5\n")
         sleep(2)
         screenshot(app, "05-script-editor")
         let analysis = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Analyse:' AND NOT (label BEGINSWITH 'Analyse: 0 Fehler')")).firstMatch
@@ -77,7 +80,7 @@ final class UnityVaultUITests: XCTestCase {
         app.tabBars.buttons["Vault"].tap()
         let add = app.navigationBars.buttons["Neu"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
-        add.tap()
+        add.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         app.buttons["Neues Projekt"].tap()
         let field = app.textFields["folderNameField"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
