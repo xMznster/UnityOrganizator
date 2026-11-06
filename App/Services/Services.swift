@@ -289,39 +289,6 @@ final class SyncService {
 
 // MARK: - PC compiler (Roslyn companion)
 
-/// Result file / HTTP response format of the PC companion.
-struct CompileResults: Codable {
-    static let path = ".vault/compile-results.json"
-    var compiledAt: Date
-    var unityPath: String?
-    var success: Bool
-    var diagnostics: [Entry]
-
-    struct Entry: Codable {
-        var file: String
-        var line: Int
-        var column: Int
-        var severity: String
-        var id: String
-        var message: String
-    }
-
-    var diagnosticsByFile: [String: [CodeDiagnostic]] {
-        var out: [String: [CodeDiagnostic]] = [:]
-        for e in diagnostics {
-            let sev: DiagnosticSeverity = e.severity == "error" ? .error : (e.severity == "warning" ? .warning : .info)
-            out[e.file, default: []].append(CodeDiagnostic(severity: sev, source: .compiler, ruleID: e.id, message: e.message, line: e.line, column: e.column))
-        }
-        return out
-    }
-
-    static func decode(_ data: Data) throws -> CompileResults {
-        let dec = JSONDecoder()
-        dec.dateDecodingStrategy = .iso8601
-        return try dec.decode(CompileResults.self, from: data)
-    }
-}
-
 enum CompilerService {
     struct Request: Codable {
         struct File: Codable { var path: String; var content: String }

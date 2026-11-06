@@ -265,3 +265,27 @@ final class CoreTests: XCTestCase {
 extension Data {
     var utf8String: String { String(decoding: self, as: UTF8.self) }
 }
+
+final class CompileResultsTests: XCTestCase {
+    /// Exact output produced by `vault-compiler` (verified against the real Roslyn companion).
+    func testDecodesCompanionOutput() throws {
+        let json = """
+        {
+          "compiledAt": "2026-11-06T09:57:24Z",
+          "unityPath": null,
+          "success": false,
+          "diagnostics": [
+            { "file": "A.cs", "line": 2, "column": 59, "severity": "error", "id": "CS1002", "message": "; expected" },
+            { "file": "A.cs", "line": 2, "column": 53, "severity": "warning", "id": "CS0219", "message": "The variable \\u0027x\\u0027 is assigned but its value is never used" }
+          ]
+        }
+        """
+        let r = try CompileResults.decode(Data(json.utf8))
+        XCTAssertFalse(r.success)
+        let a = try XCTUnwrap(r.diagnosticsByFile["A.cs"])
+        XCTAssertEqual(a.map(\.ruleID), ["CS1002", "CS0219"])
+        XCTAssertEqual(a[0].severity, .error)
+        XCTAssertEqual(a[0].source, .compiler)
+        XCTAssertTrue(a[1].message.contains("'x'"))
+    }
+}
