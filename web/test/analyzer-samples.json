@@ -1,0 +1,38 @@
+{
+ "testMissingSemicolon": [
+  "using UnityEngine;\npublic class A : MonoBehaviour\n{\n    public float speed = 5f\n    void Start()\n    {\n        int x = 5\n        Debug.Log(x);\n    }\n}"
+ ],
+ "testMissingSemicolonBeforeBlockEnd": [
+  "class A {\n    void M() {\n        int x = 1;\n        x++\n    }\n}"
+ ],
+ "testMissingClosingBraceWithHint": [
+  "using UnityEngine;\npublic class A : MonoBehaviour\n{\n    void Start()\n    {\n        if (true)\n        {\n            Debug.Log(\"x\");\n    }\n\n    void Update()\n    {\n    }\n}"
+ ],
+ "testStatementInClassBody": [
+  "using UnityEngine;\npublic class A : MonoBehaviour\n{\n    Debug.Log(\"hi\");\n    void Start() { }\n}"
+ ],
+ "testUnityMessageTypos": [
+  "using UnityEngine;\npublic class A : MonoBehaviour\n{\n    void start() { }\n    void Updtae() { }\n    void OnTriggerEnter(Collider2D other) { }\n    void OnCollisionEnter(Collider other) { }\n    void Helper() { }\n}"
+ ],
+ "testFrameMethodPerformance": [
+  "using UnityEngine;\npublic class A : MonoBehaviour\n{\n    void Update()\n    {\n        var rb = GetComponent<Rigidbody>();\n        var p = GameObject.Find(\"Player\");\n        rb.AddForce(Vector3.up);\n        transform.Translate(Vector3.forward * 2f);\n    }\n    void LateUpdate() { }\n}"
+ ],
+ "testCS1612": [
+  "using UnityEngine;\npublic class A : MonoBehaviour\n{\n    void Start() { transform.position.x = 5f; }\n}"
+ ],
+ "testMissingUsings": [
+  "public class A : MonoBehaviour\n{\n    private List<int> xs;\n    IEnumerator Run() { yield return null; }\n}"
+ ],
+ "testCoroutineRules": [
+  "using System.Collections;\nusing UnityEngine;\npublic class A : MonoBehaviour\n{\n    void Start()\n    {\n        Fade();\n        StartCoroutine(\"Fade\");\n    }\n    IEnumerator Fade() { yield return null; }\n    IEnumerator Broken() { return null; }\n}"
+ ],
+ "testCSharpHeuristics": [
+  "class A\n{\n    void M(int x)\n    {\n        if (x = 5) { }\n        if (x > 1);\n        try { } catch { }\n        while (true) { x++; }\n    }\n    void M(int y) { }\n}"
+ ],
+ "testModernSyntaxDoesNotProduceFalsePositives": [
+  "using System;\nusing System.Linq;\nusing System.Collections.Generic;\nusing UnityEngine;\n\npublic record Stats(int Hp, int Mp);\n\npublic sealed class Inventory : ScriptableObject\n{\n    [SerializeField] private List<string> items = new();\n    public IReadOnlyList<string> Items => items;\n    public string this[int i] => items[i];\n\n    public int Count\n    {\n        get { return items.Count; }\n        set\n        {\n            if (value < 0) throw new ArgumentException(nameof(value));\n        }\n    }\n\n    public string Describe(object o) => o switch\n    {\n        int n when n > 0 => \"positive\",\n        string s => s,\n        _ => \"unknown\"\n    };\n\n    public IEnumerable<string> Sorted()\n    {\n        var q = from i in items\n                where i.Length > 2\n                orderby i\n                select i;\n        var r = items\n            .Where(i => i.StartsWith(\"a\"))\n            .Select(i => i.ToUpper())\n            .ToList();\n        var anon = new { Name = \"x\", Value = 2 };\n        var cfg = new Dictionary<string, int>() { [\"a\"] = 1 };\n        Action a = delegate { Debug.Log(\"x\"); };\n        Action<int> b = delegate (int v) { Debug.Log(v); };\n        string interp = $\"Value {anon.Value} {{braces}} {cfg[\"a\"]}\";\n        string verb = @\"C:\\\\path \"\"quoted\"\"\";\n        return q.Concat(r);\n    }\n\n    public static T Max<T>(T a, T b) where T : IComparable<T>\n    {\n        return a.CompareTo(b) > 0 ? a : b;\n    }\n}"
+ ],
+ "cleanPlayer": [
+  "using System.Collections;\nusing System.Collections.Generic;\nusing UnityEngine;\nusing UnityEngine.AI;\n\nnamespace Game.Player\n{\n    [RequireComponent(typeof(Rigidbody))]\n    public class PlayerController : MonoBehaviour, IDamageable\n    {\n        [Header(\"Movement\")]\n        [SerializeField] private float speed = 5f;\n        [SerializeField, Range(0f, 10f)]\n        private float jumpForce = 4f;\n        public int Health { get; private set; } = 100;\n        public event System.Action<int> OnDamaged;\n        private Rigidbody rb;\n        private readonly List<Vector3> path = new List<Vector3>();\n        private Dictionary<string, int> map = new Dictionary<string, int>\n        {\n            { \"a\", 1 },\n            { \"b\", 2 }\n        };\n\n        private void Awake()\n        {\n            rb = GetComponent<Rigidbody>();\n        }\n\n        private void Update()\n        {\n            float h = Input.GetAxis(\"Horizontal\");\n            transform.Translate(Vector3.right * h * speed * Time.deltaTime);\n            if (h > 0.5f)\n                Debug.Assert(h > 0);\n            else if (h < -0.5f)\n            {\n                path.Add(transform.position);\n            }\n            var items = new[] { 1, 2, 3 };\n            for (int i = 0; i < items.Length; i++) { h += items[i]; }\n            System.Func<int, int> square = x =>\n            {\n                return x * x;\n            };\n            var p = transform.position;\n            p.y = 2f;\n            transform.position = p;\n            switch (items.Length)\n            {\n                case 1:\n                    break;\n                default:\n                    h = 0;\n                    break;\n            }\n        }\n\n        private void FixedUpdate()\n        {\n            rb.AddForce(Vector3.up * jumpForce);\n        }\n\n        public void TakeDamage(int amount)\n        {\n            Health -= amount;\n            OnDamaged?.Invoke(amount);\n            if (Health <= 0) StartCoroutine(Die());\n        }\n\n        private IEnumerator Die()\n        {\n            yield return new WaitForSeconds(1f);\n            Destroy(gameObject);\n        }\n\n        private void OnTriggerEnter(Collider other)\n        {\n            if (other.CompareTag(\"Enemy\"))\n            {\n                TakeDamage(10);\n            }\n        }\n\n        public int Square(int v) => v * v;\n    }\n\n    public interface IDamageable\n    {\n        void TakeDamage(int amount);\n        int Health { get; }\n    }\n\n    public enum State { Idle, Walking, Running }\n}"
+ ]
+}
