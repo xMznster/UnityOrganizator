@@ -68,7 +68,8 @@ final class UnityVaultUITests: XCTestCase {
         editor.typeText("int broken = 5\n")
         sleep(2)
         screenshot(app, "05-script-editor")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Fehler'")).firstMatch.waitForExistence(timeout: 5))
+        let analysis = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Analyse:' AND NOT (label BEGINSWITH 'Analyse: 0 Fehler')")).firstMatch
+        XCTAssertTrue(analysis.waitForExistence(timeout: 6), "Live analysis did not report the syntax error")
     }
 
     func testCreateProjectFolder() throws {
