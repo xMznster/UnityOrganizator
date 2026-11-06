@@ -403,26 +403,35 @@ final class CodeEditorController: NSObject, ObservableObject, UITextViewDelegate
         }
     }
 
-    /// Applies temporary attributes (no layout invalidation) to the visible range plus a margin.
+    /// Applies syntax colors, find/bracket highlights and diagnostic underlines to the text storage.
+    /// Documents up to 80k characters are colored completely; larger ones only around the visible
+    /// range (re-applied while scrolling), so editing stays fast even for very long scripts.
     func rehighlightVisible(force: Bool = false) {
-        let lm = textView.layoutManager
-        let length = textView.textStorage.length
+        let ts = textView.textStorage
+        let length = ts.length
         guard length > 0 else { highlightedRange = NSRange(location: 0, length: 0); return }
-        var visible = textView.bounds
-        visible.origin.y -= textView.textContainerInset.top
-        let glyphs = lm.glyphRange(forBoundingRectWithoutAdditionalLayout: visible.insetBy(dx: 0, dy: -visible.height), in: textView.textContainer)
-        var chars = lm.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
-        let margin = 3000
-        let start = max(0, chars.location - margin)
-        let end = min(length, NSMaxRange(chars) + margin)
-        chars = NSRange(location: start, length: end - start)
-        if !force && NSLocationInRange(chars.location, highlightedRange) && NSMaxRange(chars) <= NSMaxRange(highlightedRange) { return }
+        var chars = NSRange(location: 0, length: length)
+        if length > 80_000 {
+            let lm = textView.layoutManager
+            var visible = textView.bounds
+            visible.origin.y -= textView.textContainerInset.top
+            let glyphs = lm.glyphRange(forBoundingRectWithoutAdditionalLayout: visible.insetBy(dx: 0, dy: -visible.height), in: textView.textContainer)
+            let vis = lm.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+            let margin = 10_000
+            let start = max(0, vis.location - margin)
+            let end = min(length, NSMaxRange(vis) + margin)
+            chars = NSRange(location: start, length: end - start)
+            if !force && NSLocationInRange(chars.location, highlightedRange) && NSMaxRange(chars) <= NSMaxRange(highlightedRange) { return }
+        } else if !force && highlightedRange == chars {
+            return
+        }
         highlightedRange = chars
 
-        lm.removeTemporaryAttribute(.foregroundColor, forCharacterRange: chars)
-        lm.removeTemporaryAttribute(.backgroundColor, forCharacterRange: chars)
-        lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: chars)
-        lm.removeTemporaryAttribute(.underlineColor, forCharacterRange: chars)
+        ts.beginEditing()
+        ts.removeAttribute(.backgroundColor, range: chars)
+        ts.removeAttribute(.underlineStyle, range: chars)
+        ts.removeAttribute(.underlineColor, range: chars)
+        ts.addAttribute(.foregroundColor, value: palette.text, range: chars)
 
         // Binary search for the first span that may intersect.
         var lo = 0, hi = spans.count
@@ -432,34 +441,34 @@ final class CodeEditorController: NSObject, ObservableObject, UITextViewDelegate
             let s = spans[i]
             if s.location >= NSMaxRange(chars) { break }
             let r = NSIntersectionRange(NSRange(location: s.location, length: s.length), chars)
-            if r.length > 0 { lm.addTemporaryAttribute(.foregroundColor, value: color(for: s.kind), forCharacterRange: r) }
+            if r.length > 0 && NSMaxRange(r) <= length { ts.addAttribute(.foregroundColor, value: color(for: s.kind), range: r) }
             i += 1
         }
-        for r in findMatches where NSIntersectionRange(r, chars).length > 0 {
-            lm.addTemporaryAttribute(.backgroundColor, value: palette.findMatch, forCharacterRange: r)
+        for r in findMatches where NSMaxRange(r) <= length && NSIntersectionRange(r, chars).length > 0 {
+            ts.addAttribute(.backgroundColor, value: palette.findMatch, range: r)
         }
         for r in bracketRanges where NSMaxRange(r) <= length {
-            lm.addTemporaryAttribute(.backgroundColor, value: palette.bracket, forCharacterRange: r)
+            ts.addAttribute(.backgroundColor, value: palette.bracket, range: r)
         }
-        // Diagnostics as underlines.
+        // Diagnostics as dotted underlines.
         for d in diagnostics {
             let idx = d.line - 1
             guard idx >= 0, idx < lineStarts.count else { continue }
             let lineStart = lineStarts[idx]
             let lineEnd = idx + 1 < lineStarts.count ? lineStarts[idx + 1] - 1 : length
             var loc = min(lineStart + max(0, d.column - 1), max(lineStart, lineEnd))
-            var len = 0
+            var len = 1
             if let tok = tokens.first(where: { $0.location <= loc && loc < $0.end && $0.kind != .whitespace }) {
                 loc = tok.location; len = tok.length
-            } else {
-                len = max(1, min(lineEnd - loc, 1))
             }
+            guard loc < length else { continue }
             let r = NSRange(location: loc, length: max(1, min(len, length - loc)))
-            guard r.location < length, NSIntersectionRange(r, chars).length > 0 else { continue }
+            guard NSIntersectionRange(r, chars).length > 0 else { continue }
             let style = NSUnderlineStyle.thick.rawValue | NSUnderlineStyle.patternDot.rawValue
-            lm.addTemporaryAttribute(.underlineStyle, value: style, forCharacterRange: r)
-            lm.addTemporaryAttribute(.underlineColor, value: UIColor(Theme.color(for: d.severity)), forCharacterRange: r)
+            ts.addAttribute(.underlineStyle, value: style, range: r)
+            ts.addAttribute(.underlineColor, value: UIColor(Theme.color(for: d.severity)), range: r)
         }
+        ts.endEditing()
     }
 
     private func updateCaretInfo() {
