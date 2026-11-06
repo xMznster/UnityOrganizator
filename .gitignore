@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+bin/
+obj/
+node_modules/
+.DS_Store
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
