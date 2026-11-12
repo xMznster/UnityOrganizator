@@ -32,104 +32,196 @@ float sdRC(vec3 p,vec3 a,vec3 b,float r1,float r2){
 }
 float sdEll(vec3 p,vec3 c,vec3 r){ p-=c; float k0=length(p/r); float k1=length(p/(r*r)); return k0*(k0-1.0)/k1; }
 
+float smax(float a,float b,float k){ return -smin(-a,-b,k); }
+vec3 rotZ(vec3 p,float a){ float c=cos(a),s=sin(a); return vec3(c*p.x-s*p.y,s*p.x+c*p.y,p.z); }
+vec3 rotX(vec3 p,float a){ float c=cos(a),s=sin(a); return vec3(p.x,c*p.y-s*p.z,s*p.y+c*p.z); }
+vec3 rotY(vec3 p,float a){ float c=cos(a),s=sin(a); return vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z); }
+
 // ---------------- creature: DER SPALT ----------------
-float gMat; float gFlay; float gCut;
+float gMat; float gFlay; vec3 gQ;
+
+vec3 pose(vec3 p){
+  // slight torso twist + head tilted to the side and forward
+  vec3 q=p;
+  q=rotY(q,0.10*smoothstep(1.0,2.0,q.y));
+  float k=smoothstep(1.95,2.18,q.y);
+  vec3 piv=vec3(0.0,2.0,0.0);
+  q=piv+rotX(rotZ(q-piv,0.20*k),-0.16*k);
+  return q;
+}
 
 float gapW(float y){
   float open=smoothstep(0.96,1.20,y);
-  float b=0.13*smoothstep(1.0,1.62,y)*(1.0-0.72*smoothstep(1.95,2.40,y));
+  float b=0.13*smoothstep(1.0,1.62,y)*(1.0-0.66*smoothstep(1.76,2.06,y));
   return mix(-0.03,0.012+b,open);
 }
 
-float body(vec3 p){
-  vec3 ps=vec3(abs(p.x),p.yz);
-  float d=sdEll(p,vec3(0.0,2.31,0.06),vec3(0.175,0.24,0.19));                 // faceless head
-  d=smin(d,sdRC(p,vec3(0.0,2.02,-0.03),vec3(0.0,2.20,0.03),0.10,0.085),0.06);   // neck
-  d=smin(d,sdEll(p,vec3(0.0,1.78,0.0),vec3(0.46,0.27,0.23)),0.10);              // broad chest
-  d=smin(d,sdSph(ps,vec3(0.45,1.88,-0.02),0.135),0.10);                          // shoulders
-  d=smin(d,sdEll(p,vec3(0.0,1.98,-0.06),vec3(0.30,0.12,0.14)),0.10);            // trapezius
-  d=smin(d,sdEll(p,vec3(0.0,1.45,-0.02),vec3(0.28,0.30,0.16)),0.12);             // sunken abdomen
-  d=smin(d,sdEll(ps,vec3(0.21,1.76,0.13),vec3(0.18,0.12,0.10)),0.06);            // pecs
-  d=smin(d,sdCap(ps,vec3(0.07,1.98,0.12),vec3(0.42,1.95,0.0),0.03),0.04);       // collarbones
-  d=smin(d,sdEll(ps,vec3(0.47,1.80,0.0),vec3(0.12,0.16,0.12)),0.06);             // delts
-  d=smin(d,sdEll(p,vec3(0.0,1.10,-0.02),vec3(0.27,0.16,0.16)),0.10);            // pelvis
-  // legs
-  d=smin(d,sdRC(ps,vec3(0.17,1.05,0.0),vec3(0.20,0.58,0.07),0.135,0.09),0.06);
-  d=smin(d,sdRC(ps,vec3(0.20,0.58,0.07),vec3(0.21,0.10,-0.02),0.088,0.055),0.04);
-  d=smin(d,sdSph(ps,vec3(0.20,0.60,0.11),0.07),0.04);                            // knee caps
-  d=smin(d,sdEll(ps,vec3(0.21,0.42,-0.04),vec3(0.07,0.13,0.07)),0.05);           // calves
-  d=smin(d,sdEll(ps,vec3(0.19,0.85,0.05),vec3(0.095,0.20,0.09)),0.05);            // quads
-  d=smin(d,sdRC(ps,vec3(0.21,0.07,-0.05),vec3(0.23,0.035,0.22),0.06,0.045),0.04);
-  // long arms hanging to the knees
-  d=smin(d,sdRC(ps,vec3(0.49,1.86,-0.02),vec3(0.58,1.38,-0.05),0.09,0.066),0.05);
-  d=smin(d,sdRC(ps,vec3(0.58,1.38,-0.05),vec3(0.61,0.94,0.04),0.078,0.048),0.03);
-  d=smin(d,sdEll(ps,vec3(0.615,0.85,0.05),vec3(0.042,0.11,0.07)),0.03);
-  for(int i=0;i<4;i++){ float fi=float(i)-1.5;
-    vec3 a=vec3(0.615,0.76,0.05+fi*0.034);
-    vec3 m=a+vec3(0.012*fi,-0.23,0.015*fi);
-    vec3 b=m+vec3(-0.015-0.006*fi,-0.22,0.035);
-    d=smin(d,sdCap(ps,a,m,0.019),0.006);
-    d=smin(d,sdCap(ps,m,b,0.015),0.004);
-    d=smin(d,sdSph(ps,m,0.022),0.006);
+float head(vec3 q){
+  vec3 ps=vec3(abs(q.x),q.yz);
+  float d=sdEll(q,vec3(0.0,2.30,0.05),vec3(0.160,0.215,0.180));
+  d=smin(d,sdEll(q,vec3(0.0,2.37,-0.02),vec3(0.168,0.185,0.178)),0.05);       // cranium
+  d=smin(d,sdEll(q,vec3(0.0,2.15,0.08),vec3(0.095,0.075,0.085)),0.06);        // narrow jaw
+  d=smin(d,sdEll(ps,vec3(0.115,2.25,0.13),vec3(0.045,0.028,0.04)),0.03);      // cheekbones
+  d=smin(d,sdEll(ps,vec3(0.095,2.36,0.20),vec3(0.06,0.022,0.03)),0.03);       // brow
+  d=smax(d,-sdSph(ps,vec3(0.10,2.31,0.235),0.045),0.025);                      // skinned-over sockets
+  d=smax(d,-sdEll(ps,vec3(0.16,2.33,0.06),vec3(0.03,0.05,0.05)),0.03);        // temples
+  // neck
+  d=smin(d,sdRC(q,vec3(0.0,1.97,-0.03),vec3(0.0,2.17,0.02),0.125,0.105),0.05);
+  d=smin(d,sdCap(ps,vec3(0.075,2.19,0.02),vec3(0.025,1.99,0.11),0.022),0.025); // SCM
+  return d;
+}
+
+float torso(vec3 q){
+  vec3 ps=vec3(abs(q.x),q.yz);
+  float d=sdEll(q,vec3(0.0,1.74,0.0),vec3(0.36,0.30,0.20));                    // ribcage
+  d=smin(d,sdEll(q,vec3(0.0,1.98,-0.07),vec3(0.28,0.10,0.12)),0.08);          // trapezius
+  d=smin(d,sdEll(ps,vec3(0.17,1.80,0.12),vec3(0.15,0.095,0.075)),0.05);       // pecs
+  d=smin(d,sdEll(ps,vec3(0.26,1.62,-0.05),vec3(0.10,0.20,0.10)),0.06);        // lats
+  d=smin(d,sdEll(ps,vec3(0.19,1.82,-0.16),vec3(0.12,0.12,0.045)),0.04);       // scapulae
+  d=smin(d,sdEll(ps,vec3(0.44,1.84,0.0),vec3(0.105,0.125,0.105)),0.05);       // delts
+  d=smin(d,sdSph(ps,vec3(0.42,1.92,0.0),0.055),0.04);                          // acromion
+  d=smin(d,sdCap(ps,vec3(0.04,1.97,0.11),vec3(0.40,1.94,0.02),0.022),0.03);   // collarbones
+  d=smin(d,sdEll(q,vec3(0.0,1.43,0.0),vec3(0.22,0.25,0.14)),0.10);            // sunken belly
+  d=smin(d,sdEll(ps,vec3(0.19,1.36,0.0),vec3(0.085,0.14,0.11)),0.06);         // obliques
+  d=smin(d,sdEll(q,vec3(0.0,1.10,-0.02),vec3(0.24,0.15,0.15)),0.09);          // pelvis
+  d=smin(d,sdSph(ps,vec3(0.185,1.20,0.07),0.045),0.04);                        // iliac crest
+  d=smin(d,sdEll(ps,vec3(0.11,1.05,-0.10),vec3(0.115,0.12,0.10)),0.05);       // glutes
+  return d;
+}
+
+float legs(vec3 q){
+  float sd=q.x>0.0?1.0:-1.0;
+  vec3 ps=vec3(abs(q.x),q.yz);
+  if(sd<0.0) ps.z-=0.05;                                                      // contrapposto
+  float d=sdRC(ps,vec3(0.15,1.04,0.0),vec3(0.18,0.58,0.10),0.12,0.075);
+  d=smin(d,sdEll(ps,vec3(0.17,0.84,0.06),vec3(0.085,0.20,0.085)),0.05);       // quads
+  d=smin(d,sdEll(ps,vec3(0.17,0.86,-0.04),vec3(0.08,0.18,0.07)),0.05);        // hamstrings
+  d=smin(d,sdSph(ps,vec3(0.18,0.58,0.09),0.068),0.04);                         // knee joint
+  d=smin(d,sdEll(ps,vec3(0.18,0.60,0.15),vec3(0.045,0.05,0.03)),0.02);        // kneecap
+  d=smin(d,sdRC(ps,vec3(0.18,0.58,0.08),vec3(0.19,0.10,0.0),0.062,0.038),0.04);
+  d=smin(d,sdEll(ps,vec3(0.19,0.40,-0.03),vec3(0.058,0.13,0.062)),0.04);      // calf
+  d=smin(d,sdCap(ps,vec3(0.18,0.54,0.09),vec3(0.19,0.14,0.035),0.02),0.02);   // tibia ridge
+  d=smin(d,sdSph(ps,vec3(0.215,0.09,0.0),0.027),0.02);                         // ankle bones
+  d=smin(d,sdSph(ps,vec3(0.165,0.095,0.0),0.025),0.02);
+  d=smin(d,sdSph(ps,vec3(0.19,0.045,-0.045),0.045),0.03);                      // heel
+  d=smin(d,sdRC(ps,vec3(0.19,0.06,-0.02),vec3(0.20,0.03,0.15),0.045,0.035),0.03);
+  for(int i=0;i<5;i++){ float fi=float(i);
+    vec3 t0=vec3(0.165+fi*0.017,0.026,0.15-abs(fi-1.0)*0.008);
+    d=smin(d,sdCap(ps,t0,t0+vec3(0.003*fi,-0.008,0.055-fi*0.007),0.016-fi*0.0015),0.01);
   }
   return d;
 }
 
-float teeth(vec3 p){
-  if(abs(p.x)>0.24||p.y<1.0||p.y>2.6) return 1e3;
+float arms(vec3 q, out float nails){
+  float sd=q.x>0.0?1.0:-1.0;
+  vec3 ps=vec3(abs(q.x),q.yz);
+  if(sd>0.0) ps+=vec3(0.0,0.04,-0.01);                                         // dropped shoulder
+  float d=sdRC(ps,vec3(0.47,1.84,-0.01),vec3(0.55,1.38,-0.05),0.07,0.05);
+  d=smin(d,sdEll(ps,vec3(0.52,1.60,0.02),vec3(0.055,0.13,0.055)),0.04);       // biceps
+  d=smin(d,sdEll(ps,vec3(0.53,1.62,-0.06),vec3(0.055,0.15,0.05)),0.04);       // triceps
+  d=smin(d,sdSph(ps,vec3(0.555,1.37,-0.08),0.033),0.03);                       // elbow
+  d=smin(d,sdRC(ps,vec3(0.55,1.37,-0.04),vec3(0.59,0.93,0.03),0.060,0.036),0.04);
+  d=smin(d,sdEll(ps,vec3(0.57,1.24,0.0),vec3(0.05,0.12,0.048)),0.04);         // forearm mass
+  d=smin(d,sdSph(ps,vec3(0.60,0.93,0.0),0.024),0.02);                          // wrist bone
+  d=smin(d,sdEll(ps,vec3(0.60,0.85,0.04),vec3(0.028,0.085,0.058)),0.03);      // palm
+  nails=1e3;
+  float curl=sd<0.0?0.55:0.15;
+  for(int i=0;i<4;i++){ float fi=float(i);
+    vec3 a=vec3(0.60,0.775,0.0+fi*0.027);
+    float ln=(i==0||i==3)?0.85:1.0;
+    vec3 dir=normalize(vec3(-0.05,-1.0,0.05));
+    vec3 m1=a+dir*0.13*ln;
+    vec3 dir2=normalize(dir+vec3(0.0,0.0,curl*0.6));
+    vec3 m2=m1+dir2*0.12*ln;
+    vec3 dir3=normalize(dir2+vec3(0.0,curl*0.4,curl));
+    vec3 tp=m2+dir3*0.085*ln;
+    d=smin(d,sdSph(ps,a,0.018),0.008);                                         // knuckle
+    d=smin(d,sdRC(ps,a,m1,0.016,0.0135),0.006);
+    d=smin(d,sdSph(ps,m1,0.016),0.005);
+    d=smin(d,sdRC(ps,m1,m2,0.0135,0.012),0.005);
+    d=smin(d,sdSph(ps,m2,0.0135),0.004);
+    d=smin(d,sdRC(ps,m2,tp,0.012,0.009),0.004);
+    nails=min(nails,sdRC(ps,tp-dir3*0.02+vec3(0.0,0.0,0.004),tp+dir3*0.022,0.009,0.004));
+  }
+  vec3 t0=vec3(0.60,0.86,0.09), t1=vec3(0.595,0.79,0.12), t2=vec3(0.59,0.73,0.125);
+  d=smin(d,sdRC(ps,t0,t1,0.017,0.014),0.01);
+  d=smin(d,sdRC(ps,t1,t2,0.014,0.011),0.005);
+  return d;
+}
+
+float teeth(vec3 q){
+  if(abs(q.x)>0.24||q.y<1.0||q.y>2.47) return 1e3;
   float d=1e3;
-  for(int i=0;i<15;i++){
+  for(int i=0;i<17;i++){
     for(int s=0;s<2;s++){
       float sg=(s==0)?-1.0:1.0;
-      float y=1.10+float(i)*0.088+(sg>0.0?0.044:0.0);
+      float fi=float(i)+(sg>0.0?0.5:0.0);
+      float y=1.08+fi*0.080;
       float w=gapW(y);
       if(w<0.02) continue;
-      float zf=0.07*(1.0-smoothstep(1.9,2.4,y))+0.05;
-      float ln=0.75+0.25*fract(sin(float(i)*7.3+sg)*91.7);
+      if(abs(q.y-y)>0.12) continue;
+      float zf=0.075*(1.0-smoothstep(1.9,2.4,y))+0.045;
       for(int r=0;r<2;r++){
-        float z=(r==0)?zf:-zf*0.6;
-        vec3 a=vec3(sg*(w+0.012),y,z);
-        vec3 b=vec3(sg*(w-w*0.95*ln),y-0.02,z+0.015);
-        d=min(d,sdRC(p,a,b,0.020,0.003));
+        float h1=fract(sin(fi*7.31+sg*3.7+float(r)*1.9)*917.7);
+        float h2=fract(sin(fi*3.17+sg*1.3+float(r)*5.1)*331.3);
+        float z=(r==0)?zf:-zf*0.55;
+        float ln=(h1<0.18)?0.35:(0.55+0.45*h2);                                // some broken
+        float rad=0.016+0.008*h2;
+        vec3 a=vec3(sg*(w+0.014),y+(h1-0.5)*0.02,z+(h2-0.5)*0.02);
+        vec3 b=vec3(sg*(w-w*0.95*ln),y-0.03*(h2-0.3)-0.015,z+(h1-0.5)*0.05);
+        d=min(d,sdRC(q,a,b,rad,(h1<0.18)?rad*0.7:0.0025));
       }
     }
   }
   return d;
 }
 
-float strands(vec3 p){
-  if(abs(p.x)>0.2) return 1e3;
+float strands(vec3 q){
+  if(abs(q.x)>0.2) return 1e3;
   float d=1e3;
-  for(int i=0;i<5;i++){ float fi=float(i);
+  for(int i=0;i<4;i++){ float fi=float(i);
     float y=1.30+fi*0.19+0.03*sin(fi*5.0);
-    float w=gapW(y)+0.01; float z=0.12-0.07*fi+0.03*sin(fi*3.0);
-    vec3 a=vec3(-w,y,z), b=vec3(w,y+0.02*sin(fi*2.0),z), m=vec3(0.02*sin(fi),y-0.04-0.03*fract(fi*0.37),z);
-    d=min(d,sdCap(p,a,m,0.005)); d=min(d,sdCap(p,m,b,0.005));
+    float w=gapW(y)+0.01; float z=0.12-0.055*fi+0.03*sin(fi*3.0);
+    vec3 a=vec3(-w,y,z), b=vec3(w,y+0.02*sin(fi*2.0),z),
+         m=vec3(0.02*sin(fi),y-0.05-0.04*fract(fi*0.37),z);
+    float r=0.0035+0.002*fract(fi*0.71);
+    d=min(d,sdCap(q,a,m,r)); d=min(d,sdCap(q,m,b,r));
+    d=min(d,sdRC(q,m,m+vec3(0.0,-0.025-0.03*fract(fi*0.53),0.0),r*1.3,0.001)); // drip
   }
   return d;
 }
 
 float map(vec3 p){
   float g=p.y;
-  float bound=sdEll(p,vec3(0.0,1.3,0.0),vec3(0.95,1.4,0.5));
+  float bound=sdEll(p,vec3(0.0,1.3,0.0),vec3(0.95,1.45,0.55));
   if(bound>0.3){ gMat=4.0; return min(g,bound); }
-  float dBody=body(p);
+  vec3 q=pose(p); gQ=q;
+  float dBody=torso(q);
+  if(q.y>1.9) dBody=smin(dBody,head(q),0.05);
+  if(q.y<1.25) dBody=smin(dBody,legs(q),0.06);
+  float dNail=1e3;
+  if(abs(q.x)>0.30) dBody=smin(dBody,arms(q,dNail),0.05);
+  float w=gapW(q.y);
+  float rim=smoothstep(0.035,0.0,abs(abs(q.x)-w))*smoothstep(1.05,1.25,q.y);
   if(dBody<0.05){
-    float fl=smoothstep(0.58,0.64,fbm(p*2.2+vec3(3.0,1.0,0.0)));
+    float fl=smoothstep(0.60,0.66,fbm(q*2.2+vec3(3.0,1.0,0.0)));
     gFlay=fl;
-    float skinD=0.008*fbm(p*5.0)+0.0008*abs(sin(p.y*60.0+fbm(p*6.0)*30.0));
-    float veins=1.0-smoothstep(0.0,0.02,abs(fbm(p*4.0)-0.5));
-    float ribs=smoothstep(0.10,0.22,abs(p.x))*smoothstep(1.40,1.52,p.y)*(1.0-smoothstep(1.66,1.74,p.y))*(0.5+0.5*sin(p.y*58.0));
-    dBody+=skinD+0.0025*veins-0.010*ribs+fl*(0.004*sin(p.y*80.0+fbm(p*3.0)*10.0)-0.008);
+    float skinD=0.006*fbm(q*5.0)+0.0006*abs(sin(q.y*70.0+fbm(q*6.0)*30.0));
+    float veins=1.0-smoothstep(0.0,0.018,abs(fbm(q*4.0)-0.5));
+    float ax=abs(q.x);
+    float ribs=smoothstep(0.12,0.22,ax)*(1.0-smoothstep(0.36,0.40,ax))*smoothstep(1.46,1.54,q.y)*(1.0-smoothstep(1.70,1.76,q.y))
+               *smoothstep(-0.08,0.04,q.z)*(0.5+0.5*sin(q.y*52.0-ax*9.0));
+    dBody+=skinD-0.0012*veins-0.011*ribs+fl*(0.004*sin(q.y*80.0+fbm(q*3.0)*10.0)-0.008);
+    dBody-=0.012*rim;                                                          // swollen lips of the rift
   }
-  float w=gapW(p.y);
-  float cut=w-abs(p.x);
-  if(cut>0.0) cut+=0.004*fbm(p*30.0);
+  float cut=w-abs(q.x);
+  if(cut>-0.01) cut+=0.004*fbm(q*30.0);
   float dB=max(dBody,cut);
-  gCut=(cut>dBody-0.004)?1.0:0.0;
-  float dT=teeth(p);
-  float dS=strands(p);
-  float d=dB; gMat=gCut>0.5?3.0:1.0;
+  float isCut=(cut>dBody-0.004)?1.0:0.0;
+  float dT=teeth(q);
+  float dS=strands(q);
+  float d=dB; gMat=isCut>0.5?3.0:(rim>0.35?3.5:1.0);
+  if(dNail<d){d=dNail;gMat=2.6;}
   if(dT<d){d=dT;gMat=2.0;}
   if(dS<d){d=dS;gMat=3.2;}
   if(g<d){d=g;gMat=4.0;}
@@ -137,103 +229,136 @@ float map(vec3 p){
 }
 
 vec3 calcN(vec3 p){
-  vec2 e=vec2(0.0012,0.0);
+  vec2 e=vec2(0.0009,0.0);
   return normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));
 }
 float shadow(vec3 ro,vec3 rd,float k){
-  float res=1.0,t=0.02;
-  for(int i=0;i<64;i++){ float h=map(ro+rd*t); res=min(res,k*h/t); t+=clamp(h,0.015,0.25); if(res<0.002||t>6.0)break; }
-  return clamp(res,0.0,1.0);
+  float res=1.0,t=0.015;
+  for(int i=0;i<80;i++){ float h=map(ro+rd*t); res=min(res,k*h/t); t+=clamp(h,0.008,0.2); if(res<0.002||t>6.0)break; }
+  res=clamp(res,0.0,1.0); return res*res*(3.0-2.0*res);
 }
 float ao(vec3 p,vec3 n){
   float o=0.0,s=1.0;
-  for(int i=1;i<=6;i++){ float h=0.025*float(i*i); o+=(h-map(p+n*h))*s; s*=0.6; }
-  return clamp(1.0-1.6*o,0.0,1.0);
+  for(int i=1;i<=6;i++){ float h=0.02*float(i*i); o+=(h-map(p+n*h))*s; s*=0.62; }
+  return clamp(1.0-1.7*o,0.0,1.0);
+}
+vec3 bump(vec3 p,vec3 n,float f,float amt){
+  float e=0.5/f;
+  vec3 g=vec3(noise((p+vec3(e,0,0))*f)-noise((p-vec3(e,0,0))*f),
+              noise((p+vec3(0,e,0))*f)-noise((p-vec3(0,e,0))*f),
+              noise((p+vec3(0,0,e))*f)-noise((p-vec3(0,0,e))*f));
+  g-=n*dot(g,n);
+  return normalize(n-amt*g);
 }
 
 vec3 bgCol(vec2 uv){
-  float g=0.20-0.10*length(uv*vec2(1.1,0.55));
-  return vec3(g*1.02,g,g*0.98);
+  float g=0.19-0.10*length(uv*vec2(1.1,0.55));
+  return vec3(g*1.0,g*0.99,g*1.0);
 }
 
 vec3 render(vec2 frag){
   vec2 uv=(2.0*frag-uRes)/uRes.y;
-  vec3 ro=vec3(1.15,1.40,5.9);
-  vec3 ta=vec3(0.0,1.27,0.0);
+  vec3 ro=vec3(1.05,1.05,5.75);
+  vec3 ta=vec3(0.0,1.30,0.0);
   vec3 ww=normalize(ta-ro); vec3 uu=normalize(cross(ww,vec3(0,1,0))); vec3 vv=cross(uu,ww);
-  vec3 rd=normalize(uv.x*uu+uv.y*vv+3.5*ww);
+  vec3 rd=normalize(uv.x*uu+uv.y*vv+3.45*ww);
 
   float t=0.5; float m=-1.0;
-  for(int i=0;i<260;i++){
+  for(int i=0;i<300;i++){
     vec3 p=ro+rd*t; float h=map(p);
-    if(abs(h)<0.0006*t){ m=gMat; break; }
-    t+=h*0.75; if(t>14.0)break;
+    if(abs(h)<0.0005*t){ m=gMat; break; }
+    t+=h*0.7; if(t>14.0)break;
   }
   vec3 bg=bgCol(uv);
   if(m<0.0) return bg;
   vec3 p=ro+rd*t;
-  map(p); m=gMat; float fl=gFlay;
+  map(p); m=gMat; float fl=gFlay; vec3 q=gQ;
   vec3 n=calcN(p);
   float occ=ao(p,n);
 
-  vec3 L=normalize(vec3(-0.80,0.62,0.38));   // key: upper left front
-  vec3 R=normalize(vec3(-0.3,0.4,-0.9));     // cold rim from behind
-  vec3 H=normalize(L-rd);
-  float dif=clamp(dot(n,L),0.0,1.0);
-  float sh=shadow(p+n*0.004,L,10.0);
-  float rim=pow(clamp(1.0+dot(n,rd),0.0,1.0),2.5)*clamp(dot(n,R)+0.3,0.0,1.0);
-  float sky=0.5+0.5*n.y;
-
-  vec3 alb; float spec=0.0; float rough=64.0; float sss=0.0;
-  float gw=gapW(p.y); float edge=1.0-smoothstep(0.0,0.10,abs(p.x)-gw);
-  if(p.y<1.0) edge=0.0;
+  vec3 alb; float spec=0.04; float gloss=40.0; float sss=0.0;
+  float gw=gapW(q.y); float edge=1.0-smoothstep(0.0,0.09,abs(q.x)-gw);
+  if(q.y<1.0) edge=0.0;
   if(m<1.5){
-    // pale blue-grey corpse skin, black veins, dried blood around the rift
-    float mot=fbm(p*3.5);
-    vec3 skin=mix(vec3(0.13,0.14,0.15),vec3(0.25,0.26,0.27),mot);
-    float veins=1.0-smoothstep(0.0,0.02,abs(fbm(p*4.0)-0.5));
-    skin=mix(skin,vec3(0.07,0.08,0.12),veins*0.35);
-    skin=mix(skin,vec3(0.18,0.15,0.17),smoothstep(0.55,0.8,fbm(p*2.0+7.0))*0.6);
-    float str=0.5+0.5*sin(p.y*80.0+fbm(p*3.0)*10.0);
-    vec3 mus=mix(vec3(0.07,0.012,0.012),vec3(0.22,0.04,0.03),0.4*str+0.6*fbm(p*11.0));
+    n=bump(p,n,140.0,0.10);                                                    // pores
+    n=bump(p,n,35.0,0.12);                                                     // fine wrinkles
+    float mot=fbm(q*3.5);
+    vec3 skin=mix(vec3(0.145,0.150,0.155),vec3(0.285,0.285,0.28),mot);         // pale, slightly yellow-grey
+    float veins=1.0-smoothstep(0.0,0.045,abs(fbm(q*4.0)-0.5));
+    skin=mix(skin,vec3(0.12,0.14,0.20),veins*0.22);
+    // livor mortis: purple pooling in lower legs and hands
+    float livor=(1.0-smoothstep(0.15,0.75,q.y))*smoothstep(0.35,0.7,fbm(q*3.0+4.0));
+    livor+=smoothstep(1.0,0.75,q.y)*step(0.5,abs(q.x))*0.4;
+    skin=mix(skin,vec3(0.16,0.10,0.14),clamp(livor,0.0,1.0)*0.6);
+    // redness at joints / knuckles
+    float jnt=smoothstep(0.08,0.0,length(vec2(abs(q.x)-0.18,q.y-0.59)))+smoothstep(0.05,0.0,length(vec2(abs(q.x)-0.555,q.y-1.37)));
+    skin=mix(skin,vec3(0.26,0.12,0.11),clamp(jnt,0.0,1.0)*0.5);
+    // grime
+    skin*=0.80+0.25*fbm(q*22.0);
+    float str=0.5+0.5*sin(q.y*80.0+fbm(q*3.0)*10.0);
+    vec3 mus=mix(vec3(0.06,0.010,0.010),vec3(0.22,0.04,0.03),0.4*str+0.6*fbm(q*11.0));
+    float tear=smoothstep(0.0,0.3,fl)*(1.0-smoothstep(0.55,1.0,fl));
     alb=mix(skin,mus,fl);
-    // blood soaking the rift edges and dripping down the thighs
-    float drip=smoothstep(0.60,0.80,noise(vec3(p.x*22.0,p.y*1.4,p.z*22.0)))*(1.0-smoothstep(0.0,0.22,abs(p.x)))*step(0.45,p.y)*(1.0-step(1.05,p.y));
-    float bld=clamp(edge*0.9+drip+smoothstep(0.62,0.8,fbm(p*4.0))*edge,0.0,1.0);
-    alb=mix(alb,vec3(0.13,0.012,0.01),bld);
-    spec=mix(0.18,0.9,max(fl,bld)); rough=mix(24.0,90.0,max(fl,bld)); sss=0.25;
-  } else if(m<2.5){
-    float c=fbm(p*20.0);
-    alb=mix(vec3(0.50,0.45,0.34),vec3(0.70,0.64,0.50),c);
-    alb=mix(alb,vec3(0.25,0.04,0.03),smoothstep(0.08,0.0,abs(abs(p.x)-gw))*0.7); // bloody roots
-    spec=0.5; rough=50.0;
+    alb=mix(alb,vec3(0.22,0.17,0.10),tear*0.45);                               // fat layer at torn edges
+    // inflamed edges + blood trails
+    float drip=smoothstep(0.62,0.82,noise(vec3(q.x*24.0,q.y*1.3,q.z*24.0)))*(1.0-smoothstep(0.0,0.2,abs(q.x)))*step(0.40,q.y)*(1.0-step(1.06,q.y));
+    alb=mix(alb,vec3(0.22,0.05,0.045),edge*0.45);
+    float bld=clamp(edge*smoothstep(0.45,0.7,fbm(q*6.0))+drip,0.0,1.0);
+    alb=mix(alb,vec3(0.11,0.01,0.008),bld*0.9);
+    spec=mix(0.035,0.06,max(fl,bld)); gloss=mix(28.0,120.0,max(fl,bld)); sss=mix(0.55,0.3,fl);
+  } else if(m<2.3){
+    n=bump(p,n,90.0,0.15);
+    float c=fbm(q*22.0);
+    alb=mix(vec3(0.42,0.36,0.24),vec3(0.66,0.60,0.45),c);                      // yellowed teeth
+    float root=smoothstep(0.05,0.0,abs(abs(q.x)-gw)-0.01);
+    alb=mix(alb,vec3(0.20,0.06,0.04),root*0.75);
+    alb*=0.85+0.25*noise(q*300.0);
+    spec=0.06; gloss=90.0; sss=0.2;
+  } else if(m<2.8){
+    alb=vec3(0.10,0.085,0.07); spec=0.05; gloss=80.0;                          // cracked dark nails
   } else {
-    // wet flesh of the rift walls & saliva strands
-    float c=fbm(p*9.0);
-    float rid=0.5+0.5*sin(p.y*120.0+fbm(p*6.0)*8.0);
-    alb=mix(vec3(0.20,0.02,0.02),vec3(0.50,0.08,0.06),c*0.6+rid*0.4);
-    spec=1.3; rough=120.0; sss=0.35;
-    if(m>3.1){ alb=vec3(0.35,0.10,0.08); spec=1.6; }
+    // rift flesh, gums, saliva
+    n=bump(p,n,60.0,0.18);
+    float c=fbm(q*9.0);
+    float rid=0.5+0.5*sin(q.y*120.0+fbm(q*6.0)*8.0);
+    alb=mix(vec3(0.16,0.015,0.015),vec3(0.45,0.07,0.055),c*0.6+rid*0.4);
+    if(m>3.4){ alb=mix(vec3(0.22,0.06,0.05),vec3(0.34,0.10,0.09),c); }        // swollen gums
+    if(m>3.1&&m<3.4){ alb=vec3(0.35,0.12,0.10); }
+    spec=0.08; gloss=160.0; sss=0.8;
   }
   if(m>3.9){
     alb=vec3(0.13)*(0.85+0.3*fbm(vec3(p.xz*3.0,0.0)));
-    spec=0.05; rough=8.0;
-    float bl=smoothstep(0.30,0.0,length(p.xz-vec2(0.0,0.12))-0.06*fbm(p*7.0));
-    alb=mix(alb,vec3(0.10,0.015,0.012),clamp(bl,0.0,1.0)*0.9);
-    if(bl>0.3){spec=0.7;rough=80.0;}
+    spec=0.02; gloss=8.0;
+    float bl=smoothstep(0.28,0.0,length(p.xz-vec2(0.0,0.10))-0.07*fbm(p*7.0));
+    alb=mix(alb,vec3(0.09,0.012,0.010),clamp(bl,0.0,1.0)*0.92);
+    if(bl>0.3){spec=0.06;gloss=150.0;}
   }
-  vec3 col=vec3(0.0);
-  col+=alb*dif*sh*vec3(1.25,1.15,1.05);
-  // wrap-around subsurface tint
-  float wrap=clamp((dot(n,L)+0.45)/1.45,0.0,1.0);
-  col+=alb*sss*wrap*vec3(1.2,0.25,0.15)*(0.4+0.6*sh);
-  col+=alb*sky*occ*vec3(0.13,0.145,0.18);
-  col+=alb*rim*occ*vec3(0.55,0.65,0.90)*2.2;
-  float sp=pow(clamp(dot(n,H),0.0,1.0),rough)*spec*dif*sh;
-  col+=sp*vec3(1.0,0.92,0.85)*(rough>60.0?2.2:0.8);
-  col*=0.35+0.65*occ;
 
-  float fog=1.0-exp(-0.012*t*t);
+  vec3 L=normalize(vec3(-0.80,0.62,0.40));   // soft key: upper left front
+  vec3 R=normalize(vec3(0.35,0.45,-0.85));   // cold back light
+  vec3 H=normalize(L-rd);
+  float ndl=dot(n,L);
+  float dif=clamp(ndl,0.0,1.0);
+  float sh=shadow(p+n*0.003,L,7.0);
+  float fre=pow(1.0-clamp(dot(n,-rd),0.0,1.0),5.0);
+  float rimT=pow(clamp(1.0+dot(n,rd),0.0,1.0),2.0)*clamp(dot(n,R)+0.25,0.0,1.0);
+  float sky=0.5+0.5*n.y;
+  float bounce=clamp(0.5-0.5*n.y,0.0,1.0);
+
+  vec3 col=vec3(0.0);
+  vec3 keyC=vec3(1.30,1.20,1.08);
+  col+=alb*dif*sh*keyC;
+  // subsurface: light bleeding into the shadow terminator, reddened
+  float wrap=clamp((ndl+0.5)/1.5,0.0,1.0)-dif;
+  col+=alb*sss*max(wrap,0.0)*vec3(1.1,0.45,0.35)*(0.35+0.65*sh);
+  col+=alb*sky*occ*vec3(0.11,0.125,0.155);
+  col+=alb*bounce*occ*vec3(0.07,0.065,0.06);
+  col+=alb*rimT*occ*vec3(0.50,0.60,0.85)*2.0;
+  float F=spec+(1.0-spec)*fre;
+  float sp=pow(clamp(dot(n,H),0.0,1.0),gloss)*(gloss+8.0)/25.0;
+  col+=sp*F*dif*sh*keyC*0.9;
+  col+=F*occ*sky*vec3(0.05,0.055,0.07)*(gloss>60.0?1.0:0.4);                  // sheen/env reflection
+  col*=0.30+0.70*occ;
   if(m>3.9) col=mix(col,bg,smoothstep(4.0,9.0,t));
   return col;
 }
@@ -249,7 +374,7 @@ void main(){
   // ACES tonemap + gamma
   c=(c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14);
   c=pow(clamp(c,0.0,1.0),vec3(1.0/2.2));
-  vec2 uv=fc/uRes; c*=0.55+0.45*pow(16.0*uv.x*uv.y*(1.0-uv.x)*(1.0-uv.y),0.2);
+  vec2 uv=fc/uRes; c*=0.60+0.40*pow(16.0*uv.x*uv.y*(1.0-uv.x)*(1.0-uv.y),0.2);
   c+=(hash(vec3(fc,1.0))-0.5)*0.025;
   gl_FragColor=vec4(c,1.0);
 }

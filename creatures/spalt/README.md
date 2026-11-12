@@ -26,11 +26,15 @@
 | Zähne | `#807057` – `#B3A380` |
 | Blut | `#210302` |
 
+## Pose (v2)
+Kopf schief zur Seite und nach vorn geneigt, rechte Schulter hängt, Oberkörper leicht verdreht, Standbein und Spielbein. Die linke Hand ist eingekrallt, die rechte hängt locker.
+
 ## Bewegung, Geräusch, Verhalten
 - **Bewegung:** steht meist völlig still und aufrecht, ist dabei kaum von einer Person zu unterscheiden. Es geht langsam, mit steifen Knien. Beim Sprint klappen die beiden Hälften leicht auseinander und das Gangbild wird asynchron, als liefen zwei Körper.
 - **Geräusch:** ein nasses, reißendes Ausatmen *durch den Spalt*, und das leise Klicken der Zähne, wenn sich der Riss beim Atmen schließt und öffnet.
 - **Verhalten:** Es schaut nie direkt hin, denn es hat kein Gesicht, dreht aber den Spalt zum Spieler. Steht es im Türrahmen mit Licht dahinter, sieht man nur den Lichtschlitz.
 
 ## Dateien
-- `spalt_concept.png` – Concept-Render 1200×1600
+- `spalt_concept.png` – Concept-Render v2 (realistischer: Anatomie, Pose, Haut-Shading) 1200×1600
+- `spalt_concept_v1.png` – erste Version zum Vergleich
 - `spalt_render.html` – Quelle (SDF-Raymarching-Shader), Maße in Metern als Blockout-Vorlage
