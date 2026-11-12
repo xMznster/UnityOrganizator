@@ -2,7 +2,7 @@
 
 ![Vorschau](kloeppel_roblox_sheet.png)
 
-Stilisierter Look, angelehnt an Roblox-Horror: klare Formen, Details aufgemalt statt modelliert, Schatten in die Textur eingebacken.
+Farbvariante **A – Verwest**: dunkle, olivbraune Leichenhaut, vergilbter, blutgetränkter Knochen. Stilisierter Look, angelehnt an Roblox-Horror: klare Formen, Details aufgemalt statt modelliert, Schatten in die Textur eingebacken.
 
 | | |
 |---|---|
@@ -21,7 +21,8 @@ Stilisierter Look, angelehnt an Roblox-Horror: klare Formen, Details aufgemalt s
 - `kloeppel_normal.png` – **NormalMap** (Hautfalten, Poren, Adern, Muskelfasern, Knochenrisse, Augenhöhlen)
 - `kloeppel_roughness.png` – **RoughnessMap** (Blut, Fleisch und Zunge nass glänzend, Haut und Knochen matt)
 - `kloeppel_texture_maps.png` – Übersicht aller drei Maps
-- `build_kloeppel.py` – erzeugt alles neu: `python build_kloeppel.py` (mit `pip install bpy`)
+- `build_kloeppel.py` – erzeugt alles neu: `python build_kloeppel.py --palette rot` (mit `pip install bpy`). Weitere Paletten: `flayed`, `charred`, `pale`
+- `farbvarianten.png` – Vergleich der Farbrichtungen A/B/C
 - `preview_*.png` – Vorschaubilder
 
 ## Knochen
