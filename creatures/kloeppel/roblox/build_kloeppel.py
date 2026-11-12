@@ -212,6 +212,26 @@ def mix(nt, fac, a, b, blend='MIX'):
     return m.outputs[2]
 
 
+def mop(nt, op, a, b=None):
+    m = nt.nodes.new('ShaderNodeMath'); m.operation = op
+    for sock, v in ((m.inputs[0], a), (m.inputs[1], b)):
+        if v is None:
+            continue
+        if isinstance(v, (int, float)):
+            sock.default_value = v
+        else:
+            nt.links.new(v, sock)
+    return m.outputs[0]
+
+
+def bump(nt, bsdf, height, strength, distance=0.02):
+    b = nt.nodes.new('ShaderNodeBump')
+    b.inputs['Strength'].default_value = strength
+    b.inputs['Distance'].default_value = distance
+    nt.links.new(height, b.inputs['Height'])
+    nt.links.new(b.outputs['Normal'], bsdf.inputs['Normal'])
+
+
 def mat_skin(nt, bsdf):
     # stylized: two-tone grey-violet skin, bruise blotches, raw muscle patches, blood trails
     n1 = noise(nt, 3.0, 2.0)
@@ -252,8 +272,23 @@ def mat_skin(nt, bsdf):
     vm = nt.nodes.new('ShaderNodeMath'); vm.operation = 'MULTIPLY'; vm.inputs[1].default_value = 0.55
     nt.links.new(vr.outputs[0], vm.inputs[0])
     c = mix(nt, vm.outputs[0], c, hexc('#3b2d3a'))
+    # fine mottling / pores in the colour
+    npo = noise(nt, 60.0, 4.0)
+    pr = ramp(nt, npo.outputs['Fac'], [(0.3, '#000000'), (0.7, '#ffffff')])
+    c = mix(nt, mop(nt, 'MULTIPLY', pr.outputs[0], 0.18), c, hexc('#2f2b25'))
     nt.links.new(c, bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.7
+    # height: wrinkles + pores + raised veins + muscle fibres in the flayed patches
+    nw = noise(nt, 9.0, 6.0, stretch=(1, 1, 3.0))
+    h = mop(nt, 'MULTIPLY', nw.outputs['Fac'], 0.6)
+    h = mop(nt, 'ADD', h, mop(nt, 'MULTIPLY', npo.outputs['Fac'], 0.25))
+    h = mop(nt, 'ADD', h, mop(nt, 'MULTIPLY', vr.outputs[0], 0.5))
+    h = mop(nt, 'ADD', h, mop(nt, 'MULTIPLY', mop(nt, 'MULTIPLY', n4.outputs['Fac'], mus_mask.outputs[0]), 1.2))
+    h = mop(nt, 'SUBTRACT', h, mop(nt, 'MULTIPLY', mus_mask.outputs[0], 0.6))   # flayed areas sit lower
+    bump(nt, bsdf, h, 1.0, 0.06)
+    # roughness: dry skin, wet muscle and blood
+    r = mop(nt, 'SUBTRACT', 0.72, mop(nt, 'MULTIPLY', mus_mask.outputs[0], 0.40))
+    r = mop(nt, 'SUBTRACT', r, mop(nt, 'MULTIPLY', m2.outputs[0], 0.45))
+    nt.links.new(mop(nt, 'MAXIMUM', r, 0.18), bsdf.inputs['Roughness'])
 
 
 def mat_bone(nt, bsdf):
@@ -271,7 +306,12 @@ def mat_bone(nt, bsdf):
     cr = ramp(nt, n2.outputs['Fac'], [(0.48, '#000000'), (0.5, '#ffffff'), (0.52, '#000000')])
     c = mix(nt, cr.outputs[0], c, hexc('#6e5c44'))
     nt.links.new(c, bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.55
+    nb = noise(nt, 25.0, 5.0)
+    h = mop(nt, 'MULTIPLY', nb.outputs['Fac'], 0.3)
+    h = mop(nt, 'SUBTRACT', h, mop(nt, 'MULTIPLY', pits.outputs[0], 1.0))
+    h = mop(nt, 'SUBTRACT', h, mop(nt, 'MULTIPLY', cr.outputs[0], 0.5))
+    bump(nt, bsdf, h, 1.0, 0.07)
+    nt.links.new(mop(nt, 'ADD', 0.5, mop(nt, 'MULTIPLY', nb.outputs['Fac'], 0.25)), bsdf.inputs['Roughness'])
 
 
 def mat_bell(nt, bsdf):
@@ -289,21 +329,26 @@ def mat_bell(nt, bsdf):
     r = ramp(nt, add.outputs[0], [(0.30, '#ffffff'), (0.42, '#000000')])
     c = mix(nt, r.outputs[0], link_in, hexc('#4a0f0e'))
     nt.links.new(c, bsdf.inputs['Base Color'])
+    rough_in = bsdf.inputs['Roughness'].links[0].from_socket
+    nt.links.new(mop(nt, 'SUBTRACT', rough_in, mop(nt, 'MULTIPLY', r.outputs[0], 0.35)), bsdf.inputs['Roughness'])
 
 
 def mat_flesh(nt, bsdf):
     n1 = noise(nt, 8.0, 3.0)
     base = ramp(nt, n1.outputs['Fac'], [(0.3, '#5c0f12'), (0.7, '#a8302c')])
     nt.links.new(base.outputs[0], bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.25
+    nr = noise(nt, 30.0, 3.0, stretch=(3.0, 3.0, 0.4))
+    bump(nt, bsdf, mop(nt, 'ADD', nr.outputs['Fac'], mop(nt, 'MULTIPLY', n1.outputs['Fac'], 0.5)), 1.0, 0.05)
+    nt.links.new(mop(nt, 'ADD', 0.15, mop(nt, 'MULTIPLY', n1.outputs['Fac'], 0.15)), bsdf.inputs['Roughness'])
 
 
 def mat_teeth(nt, bsdf):
     tc = nt.nodes.new('ShaderNodeTexCoord')
     n1 = noise(nt, 20.0, 2.0)
-    base = ramp(nt, n1.outputs['Fac'], [(0.3, '#c9bb93'), (0.7, '#efe6cc')])
+    base = ramp(nt, n1.outputs['Fac'], [(0.3, '#b8a77c'), (0.7, '#efe6cc')])
     nt.links.new(base.outputs[0], bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.4
+    bump(nt, bsdf, n1.outputs['Fac'], 0.6, 0.02)
+    bsdf.inputs['Roughness'].default_value = 0.35
 
 
 def mat_claw(nt, bsdf):
@@ -696,13 +741,14 @@ def bake_texture(mesh):
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004)
+    bpy.ops.uv.pack_islands(rotate=True, margin=0.004)
     bpy.ops.object.mode_set(mode='OBJECT')
     sc = bpy.context.scene
     sc.render.engine = 'CYCLES'
     sc.cycles.device = 'CPU'
     sc.render.bake.margin = 6
     results = {}
-    for kind in ('DIFFUSE', 'AO'):
+    for kind in ('DIFFUSE', 'AO', 'NORMAL', 'ROUGHNESS'):
         img = bpy.data.images.new("bake_" + kind, TEX_RES, TEX_RES, alpha=False, float_buffer=True)
         for m in mesh.data.materials:
             nt = m.node_tree
@@ -712,9 +758,15 @@ def bake_texture(mesh):
         if kind == 'DIFFUSE':
             sc.cycles.samples = 4
             bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'})
-        else:
+        elif kind == 'AO':
             sc.cycles.samples = 64
             bpy.ops.object.bake(type='AO')
+        elif kind == 'NORMAL':
+            sc.cycles.samples = 4
+            bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT')
+        else:
+            sc.cycles.samples = 4
+            bpy.ops.object.bake(type='ROUGHNESS')
         results[kind] = img
     import numpy as np
     col = np.array(results['DIFFUSE'].pixels[:], dtype=np.float32).reshape(-1, 4)
@@ -731,6 +783,21 @@ def bake_texture(mesh):
     tex.file_format = 'PNG'
     tex.save()
     tex.colorspace_settings.name = 'sRGB'
+
+    def save_data(name, img, single=False):
+        px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+        if single:
+            px[:, 1] = px[:, 0]; px[:, 2] = px[:, 0]
+        px[:, 3] = 1.0
+        im = bpy.data.images.new(name, TEX_RES, TEX_RES, alpha=False)
+        im.colorspace_settings.name = 'Non-Color'
+        im.pixels[:] = np.clip(px, 0, 1).ravel()
+        im.filepath_raw = os.path.join(OUT, name + ".png")
+        im.file_format = 'PNG'
+        im.save()
+        return im
+    nrm = save_data("kloeppel_normal", results['NORMAL'])
+    rgh = save_data("kloeppel_roughness", results['ROUGHNESS'], single=True)
     # single game material
     gm = bpy.data.materials.new("Kloeppel_Mat")
     gm.use_nodes = True
@@ -738,7 +805,12 @@ def bake_texture(mesh):
     bsdf = nt.nodes['Principled BSDF']
     tn = nt.nodes.new('ShaderNodeTexImage'); tn.image = tex
     nt.links.new(tn.outputs[0], bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.6
+    tr = nt.nodes.new('ShaderNodeTexImage'); tr.image = rgh
+    nt.links.new(tr.outputs[0], bsdf.inputs['Roughness'])
+    tnm = nt.nodes.new('ShaderNodeTexImage'); tnm.image = nrm
+    nm = nt.nodes.new('ShaderNodeNormalMap')
+    nt.links.new(tnm.outputs[0], nm.inputs['Color'])
+    nt.links.new(nm.outputs[0], bsdf.inputs['Normal'])
     mesh.data.materials.clear()
     mesh.data.materials.append(gm)
     for p in mesh.data.polygons:
