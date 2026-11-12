@@ -17,6 +17,32 @@ STAGE = sys.argv[sys.argv.index("--stage") + 1] if "--stage" in sys.argv else "f
 TEX_RES = 1024
 
 
+PALETTES = {
+    # original (pale)
+    "pale": dict(skin=('#55554a', '#77745f'), bruise='#4d3440', mus=('#4a0f10', '#7a2220'), mus_cov=0.585,
+                 blood='#3a0b0c', dirt='#2c2622', vein='#3b2d3a', pore='#2f2b25',
+                 bone=('#b3a281', '#ddd0ad'), pit='#2b2119', crack='#6e5c44', bell_blood='#4a0f0e',
+                 teeth=('#b8a77c', '#efe6cc'), flesh=('#5c0f12', '#a8302c')),
+    # A: rotting - dark olive/brown corpse, yellowed bone soaked in old blood
+    "rot": dict(skin=('#2b2a1d', '#4a4630'), bruise='#2a1c22', mus=('#3a0a0b', '#6a1a17'), mus_cov=0.575,
+                blood='#2a0606', dirt='#14110d', vein='#1c1418', pore='#17150f',
+                bone=('#4a3c26', '#6e5c3c'), pit='#120c08', crack='#3d2f1f', bell_blood='#3a0a08',
+                teeth=('#7d6a42', '#b09c6a'), flesh=('#3f080a', '#86211e')),
+    # B: flayed - mostly raw red muscle with scraps of dark skin left
+    "flayed": dict(skin=('#3a2d2c', '#584443'), bruise='#2a1418', mus=('#5a1210', '#9a2f26'), mus_cov=0.47,
+                   blood='#2e0505', dirt='#1a0e0c', vein='#2a0d10', pore='#1c1111',
+                   bone=('#5e4b34', '#86704f'), pit='#1a0f0a', crack='#4d3a28', bell_blood='#4a0a08',
+                   teeth=('#8f7b55', '#c2ae84'), flesh=('#4a0a0c', '#a02a26')),
+    # C: charred - near-black skin with deep red cracks, dark old bone
+    "charred": dict(skin=('#151314', '#2a2526'), bruise='#3a0d0d', mus=('#5e0d0a', '#a3241a'), mus_cov=0.60,
+                    blood='#3a0606', dirt='#0b0a0a', vein='#7a1410', pore='#0d0c0c',
+                    bone=('#2e2620', '#4a3e32'), pit='#0e0a07', crack='#2b2117', bell_blood='#3a0806',
+                    teeth=('#9a875c', '#d1bd8c'), flesh=('#3a0607', '#8a1d19')),
+}
+PNAME = sys.argv[sys.argv.index("--palette") + 1] if "--palette" in sys.argv else "rot"
+P = PALETTES[PNAME]
+
+
 def C(x, up, fwd):
     return Vector((x, -fwd, up))
 
@@ -235,14 +261,14 @@ def bump(nt, bsdf, height, strength, distance=0.02):
 def mat_skin(nt, bsdf):
     # stylized: two-tone grey-violet skin, bruise blotches, raw muscle patches, blood trails
     n1 = noise(nt, 3.0, 2.0)
-    base = ramp(nt, n1.outputs['Fac'], [(0.35, '#55554a'), (0.65, '#77745f')])
+    base = ramp(nt, n1.outputs['Fac'], [(0.35, P['skin'][0]), (0.65, P['skin'][1])])
     n2 = noise(nt, 1.6, 2.0)
     br = ramp(nt, n2.outputs['Fac'], [(0.58, '#000000'), (0.68, '#ffffff')])
-    c = mix(nt, br.outputs[0], base.outputs[0], hexc('#4d3440'))
+    c = mix(nt, br.outputs[0], base.outputs[0], hexc(P['bruise']))
     n3 = noise(nt, 2.0, 4.0)
-    mus_mask = ramp(nt, n3.outputs['Fac'], [(0.585, '#000000'), (0.60, '#ffffff')])
+    mus_mask = ramp(nt, n3.outputs['Fac'], [(P['mus_cov'], '#000000'), (P['mus_cov'] + 0.015, '#ffffff')])
     n4 = noise(nt, 14.0, 1.0, stretch=(1, 1, 0.25))
-    mus = ramp(nt, n4.outputs['Fac'], [(0.4, '#4a0f10'), (0.6, '#7a2220')])
+    mus = ramp(nt, n4.outputs['Fac'], [(0.4, P['mus'][0]), (0.6, P['mus'][1])])
     c = mix(nt, mus_mask.outputs[0], c, mus.outputs[0])
     # blood trails (vertical streaks, chest/front area)
     n5 = noise(nt, 9.0, 1.0, stretch=(1, 1, 0.08))
@@ -260,22 +286,22 @@ def mat_skin(nt, bsdf):
     nt.links.new(bl.outputs[0], m1.inputs[0]); nt.links.new(zr.outputs[0], m1.inputs[1])
     m2 = nt.nodes.new('ShaderNodeMath'); m2.operation = 'MULTIPLY'
     nt.links.new(m1.outputs[0], m2.inputs[0]); nt.links.new(yr.outputs[0], m2.inputs[1])
-    c = mix(nt, m2.outputs[0], c, hexc('#3a0b0c'))
+    c = mix(nt, m2.outputs[0], c, hexc(P['blood']))
     # dirty, darker extremities (hands & feet in the dirt)
     lo = nt.nodes.new('ShaderNodeMapRange')
     lo.inputs[1].default_value, lo.inputs[2].default_value = 0.55, 0.05
     nt.links.new(sep.outputs['Z'], lo.inputs[0])
-    c = mix(nt, lo.outputs[0], c, hexc('#2c2622'))
+    c = mix(nt, lo.outputs[0], c, hexc(P['dirt']))
     # thin dark veins
     nv = noise(nt, 3.5, 5.0)
     vr = ramp(nt, nv.outputs['Fac'], [(0.485, '#000000'), (0.5, '#ffffff'), (0.515, '#000000')])
     vm = nt.nodes.new('ShaderNodeMath'); vm.operation = 'MULTIPLY'; vm.inputs[1].default_value = 0.55
     nt.links.new(vr.outputs[0], vm.inputs[0])
-    c = mix(nt, vm.outputs[0], c, hexc('#3b2d3a'))
+    c = mix(nt, vm.outputs[0], c, hexc(P['vein']))
     # fine mottling / pores in the colour
     npo = noise(nt, 60.0, 4.0)
     pr = ramp(nt, npo.outputs['Fac'], [(0.3, '#000000'), (0.7, '#ffffff')])
-    c = mix(nt, mop(nt, 'MULTIPLY', pr.outputs[0], 0.18), c, hexc('#2f2b25'))
+    c = mix(nt, mop(nt, 'MULTIPLY', pr.outputs[0], 0.18), c, hexc(P['pore']))
     nt.links.new(c, bsdf.inputs['Base Color'])
     # height: wrinkles + pores + raised veins + muscle fibres in the flayed patches
     nw = noise(nt, 9.0, 6.0, stretch=(1, 1, 3.0))
@@ -293,18 +319,18 @@ def mat_skin(nt, bsdf):
 
 def mat_bone(nt, bsdf):
     n1 = noise(nt, 6.0, 3.0)
-    base = ramp(nt, n1.outputs['Fac'], [(0.35, '#b3a281'), (0.7, '#ddd0ad')])
+    base = ramp(nt, n1.outputs['Fac'], [(0.35, P['bone'][0]), (0.7, P['bone'][1])])
     # painted dark sockets / pits
     vor = nt.nodes.new('ShaderNodeTexVoronoi')
     vor.inputs['Scale'].default_value = 3.2
     tc = nt.nodes.new('ShaderNodeTexCoord')
     nt.links.new(tc.outputs['Object'], vor.inputs['Vector'])
     pits = ramp(nt, vor.outputs['Distance'], [(0.20, '#ffffff'), (0.26, '#000000')])
-    c = mix(nt, pits.outputs[0], base.outputs[0], hexc('#2b2119'))
+    c = mix(nt, pits.outputs[0], base.outputs[0], hexc(P['pit']))
     # cracks / sutures
     n2 = noise(nt, 5.0, 4.0)
     cr = ramp(nt, n2.outputs['Fac'], [(0.48, '#000000'), (0.5, '#ffffff'), (0.52, '#000000')])
-    c = mix(nt, cr.outputs[0], c, hexc('#6e5c44'))
+    c = mix(nt, cr.outputs[0], c, hexc(P['crack']))
     nt.links.new(c, bsdf.inputs['Base Color'])
     nb = noise(nt, 25.0, 5.0)
     h = mop(nt, 'MULTIPLY', nb.outputs['Fac'], 0.3)
@@ -327,7 +353,7 @@ def mat_bell(nt, bsdf):
     sc = nt.nodes.new('ShaderNodeMath'); sc.operation = 'MULTIPLY'; sc.inputs[1].default_value = 0.25
     nt.links.new(n.outputs['Fac'], sc.inputs[0]); nt.links.new(sc.outputs[0], add.inputs[1])
     r = ramp(nt, add.outputs[0], [(0.30, '#ffffff'), (0.42, '#000000')])
-    c = mix(nt, r.outputs[0], link_in, hexc('#4a0f0e'))
+    c = mix(nt, r.outputs[0], link_in, hexc(P['bell_blood']))
     nt.links.new(c, bsdf.inputs['Base Color'])
     rough_in = bsdf.inputs['Roughness'].links[0].from_socket
     nt.links.new(mop(nt, 'SUBTRACT', rough_in, mop(nt, 'MULTIPLY', r.outputs[0], 0.35)), bsdf.inputs['Roughness'])
@@ -335,7 +361,7 @@ def mat_bell(nt, bsdf):
 
 def mat_flesh(nt, bsdf):
     n1 = noise(nt, 8.0, 3.0)
-    base = ramp(nt, n1.outputs['Fac'], [(0.3, '#5c0f12'), (0.7, '#a8302c')])
+    base = ramp(nt, n1.outputs['Fac'], [(0.3, P['flesh'][0]), (0.7, P['flesh'][1])])
     nt.links.new(base.outputs[0], bsdf.inputs['Base Color'])
     nr = noise(nt, 30.0, 3.0, stretch=(3.0, 3.0, 0.4))
     bump(nt, bsdf, mop(nt, 'ADD', nr.outputs['Fac'], mop(nt, 'MULTIPLY', n1.outputs['Fac'], 0.5)), 1.0, 0.05)
@@ -345,7 +371,7 @@ def mat_flesh(nt, bsdf):
 def mat_teeth(nt, bsdf):
     tc = nt.nodes.new('ShaderNodeTexCoord')
     n1 = noise(nt, 20.0, 2.0)
-    base = ramp(nt, n1.outputs['Fac'], [(0.3, '#b8a77c'), (0.7, '#efe6cc')])
+    base = ramp(nt, n1.outputs['Fac'], [(0.3, P['teeth'][0]), (0.7, P['teeth'][1])])
     nt.links.new(base.outputs[0], bsdf.inputs['Base Color'])
     bump(nt, bsdf, n1.outputs['Fac'], 0.6, 0.02)
     bsdf.inputs['Roughness'].default_value = 0.35
@@ -887,7 +913,7 @@ if __name__ == "__main__":
     if STAGE == "geo":
         cam = setup_render(res=(700, 860), samples=24)
         aim(cam, (3.6, -6.2, 2.0))
-        render(os.path.join(OUT, "_geo_preview.png"))
+        render(os.path.join(OUT, f"_geo_preview_{PNAME}.png"))
         sys.exit(0)
 
     rig, bones = build_rig(tpts)
