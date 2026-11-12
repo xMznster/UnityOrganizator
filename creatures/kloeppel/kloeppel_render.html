@@ -1,0 +1,350 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Kloeppel Render</title>
+<style>html,body{margin:0;background:#222}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script id="fs" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 uRes;
+uniform vec2 uOff;
+uniform float uAA;
+
+// ---------------- noise ----------------
+float hash(vec3 p){ p=fract(p*0.3183099+0.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float noise(vec3 x){
+  vec3 i=floor(x); vec3 f=fract(x); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
+float fbm(vec3 p){ float a=0.5,s=0.0; for(int i=0;i<5;i++){ s+=a*noise(p); p=p*2.03+vec3(1.7,9.2,3.1); a*=0.5;} return s; }
+
+// ---------------- primitives ----------------
+float smin(float a,float b,float k){ float h=clamp(0.5+0.5*(b-a)/k,0.0,1.0); return mix(b,a,h)-k*h*(1.0-h); }
+float sdSph(vec3 p,vec3 c,float r){ return length(p-c)-r; }
+float sdCap(vec3 p,vec3 a,vec3 b,float r){ vec3 pa=p-a,ba=b-a; float h=clamp(dot(pa,ba)/dot(ba,ba),0.0,1.0); return length(pa-ba*h)-r; }
+float sdRC(vec3 p,vec3 a,vec3 b,float r1,float r2){
+  vec3 ba=b-a; float l2=dot(ba,ba); float rr=r1-r2; float a2=l2-rr*rr; float il2=1.0/l2;
+  vec3 pa=p-a; float y=dot(pa,ba); float z=y-l2;
+  vec3 xv=pa*l2-ba*y; float x2=dot(xv,xv); float y2=y*y*l2; float z2=z*z*l2;
+  float k=sign(rr)*rr*rr*x2;
+  if(sign(z)*a2*z2>k) return sqrt(x2+z2)*il2-r2;
+  if(sign(y)*a2*y2<k) return sqrt(x2+y2)*il2-r1;
+  return (sqrt(x2*a2*il2)+y*rr)*il2-r1;
+}
+float sdEll(vec3 p,vec3 c,vec3 r){ p-=c; float k0=length(p/r); float k1=length(p/(r*r)); return k0*(k0-1.0)/k1; }
+
+// ---------------- creature ----------------
+const vec3 A = vec3(0.0,2.24,0.60);           // bell apex
+vec3 D = normalize(vec3(0.0,-0.88,0.47));     // bell axis
+const vec3 BX = vec3(1.0,0.0,0.0);
+
+// mats: 1 skin/muscle body, 2 bone, 3 wet flesh, 4 ground
+float gMat; float gFlay;
+
+float bell(vec3 p, out float inner){
+  vec3 BZ = cross(BX,D);
+  vec3 q=p-A; float h=dot(q,D); vec3 rv=q-D*h; float rad=length(rv);
+  float ang=atan(dot(rv,BZ),dot(rv,BX));
+  float L=0.74 + 0.03*noise(vec3(ang*5.0,0.0,1.0));
+  float hn=clamp(h/L,0.0,1.0);
+  float r=0.12+0.20*hn+0.10*hn*hn*hn;
+  float dO=(rad-r)*0.72;
+  inner=dO;
+  float sh=abs(dO)-0.065;
+  sh=max(sh,h-L);
+  sh=max(sh,-h);
+  sh=smin(sh,sdSph(p,A+D*0.02,0.15),0.08);
+  return sh;
+}
+
+float body(vec3 p){
+  // symmetric parts
+  vec3 ps=vec3(abs(p.x),p.yz);
+  float d=sdEll(p,vec3(0.0,1.05,-0.18),vec3(0.40,0.30,0.32));
+  d=smin(d,sdEll(p,vec3(0.0,1.42,-0.02),vec3(0.52,0.42,0.40)),0.18);
+  d=smin(d,sdEll(p,vec3(0.0,1.72,0.18),vec3(0.66,0.40,0.46)),0.20);
+  d=smin(d,sdEll(p,vec3(0.0,1.86,-0.10),vec3(0.54,0.42,0.42)),0.20);
+  d=smin(d,sdSph(ps,vec3(0.66,1.84,0.22),0.27),0.12);
+  // neck: forward-thrust, thick
+  d=smin(d,sdRC(p,vec3(0.0,1.92,0.18),A-D*0.02,0.25,0.13),0.10);
+  // legs digitigrade (mirrored)
+  d=smin(d,sdRC(ps,vec3(0.30,1.02,-0.24),vec3(0.42,0.62,0.12),0.22,0.14),0.08);
+  d=smin(d,sdRC(ps,vec3(0.42,0.62,0.12),vec3(0.40,0.22,-0.30),0.13,0.075),0.05);
+  d=smin(d,sdRC(ps,vec3(0.40,0.22,-0.30),vec3(0.40,0.045,0.02),0.075,0.05),0.04);
+  for(int i=0;i<3;i++){ float fi=float(i)-1.0;
+    d=smin(d,sdCap(ps,vec3(0.40+fi*0.05,0.04,0.0),vec3(0.40+fi*0.08,0.025,0.15),0.035),0.02); }
+  // LEFT arm (viewer right side, x<0) planted on knuckles
+  d=smin(d,sdRC(p,vec3(-0.70,1.84,0.22),vec3(-0.92,1.22,0.36),0.21,0.16),0.08);
+  d=smin(d,sdRC(p,vec3(-0.92,1.22,0.36),vec3(-0.86,0.36,0.62),0.21,0.12),0.06);
+  d=smin(d,sdEll(p,vec3(-0.86,0.13,0.70),vec3(0.15,0.10,0.17)),0.10);
+  for(int i=0;i<4;i++){ float fi=float(i)-1.5;
+    d=smin(d,sdCap(p,vec3(-0.86+fi*0.06,0.10,0.78),vec3(-0.86+fi*0.085,0.035,0.98),0.034),0.02); }
+  // RIGHT arm (x>0) hanging forward, long fingers dangling
+  d=smin(d,sdRC(p,vec3(0.70,1.84,0.22),vec3(0.95,1.24,0.48),0.21,0.16),0.08);
+  d=smin(d,sdRC(p,vec3(0.95,1.24,0.48),vec3(0.86,0.62,0.86),0.21,0.12),0.06);
+  d=smin(d,sdEll(p,vec3(0.86,0.52,0.92),vec3(0.13,0.15,0.10)),0.08);
+  for(int i=0;i<4;i++){ float fi=float(i)-1.5;
+    vec3 a=vec3(0.86+fi*0.055,0.44,0.95);
+    vec3 m=a+vec3(fi*0.02,-0.20,0.05+0.02*fi);
+    vec3 b=m+vec3(fi*0.015,-0.20,-0.04);
+    d=smin(d,sdCap(p,a,m,0.032),0.02);
+    d=smin(d,sdCap(p,m,b,0.026),0.015);
+  }
+  return d;
+}
+
+float bones(vec3 p){
+  float d=1e3;
+  // spine vertebrae bursting through the hunched back
+  for(int i=0;i<11;i++){
+    float t=float(i)/10.0;
+    float an=mix(-1.9,0.55,t);
+    vec3 c=vec3(0.0,1.72,-0.06)+vec3(0.0,sin(an),-cos(an))*0.44;
+    vec3 n=normalize(c-vec3(0.0,1.72,-0.06));
+    d=min(d,sdSph(p,c,0.055));
+    d=smin(d,sdRC(p,c,c+n*(0.07+0.05*sin(t*9.0)),0.04,0.012),0.02);
+  }
+  // ring of jaw teeth hanging from the bell rim
+  { vec3 BZ=cross(BX,D);
+    for(int i=0;i<16;i++){ float a=float(i)/16.0*6.2832+0.2;
+      vec3 rad=cos(a)*BX+sin(a)*BZ;
+      float len=0.10+0.07*fract(sin(float(i)*12.9)*437.5);
+      vec3 b=A+D*0.72+rad*0.40;
+      d=smin(d,sdRC(p,b,b+D*len-rad*0.035,0.034,0.006),0.01);
+    } }
+  // elbow spurs
+  d=min(d,sdRC(p,vec3(-0.94,1.24,0.30),vec3(-1.05,1.30,0.12),0.06,0.012));
+  d=min(d,sdRC(p,vec3(0.98,1.26,0.42),vec3(1.10,1.34,0.26),0.06,0.012));
+  // heel spurs
+  vec3 ps=vec3(abs(p.x),p.yz);
+  d=min(d,sdRC(ps,vec3(0.40,0.24,-0.32),vec3(0.42,0.30,-0.46),0.05,0.01));
+  // black claws / nails planted hand
+  for(int i=0;i<4;i++){ float fi=float(i)-1.5;
+    d=min(d,sdRC(p,vec3(-0.86+fi*0.085,0.035,0.98),vec3(-0.86+fi*0.095,0.01,1.07),0.026,0.006));
+    vec3 b=vec3(0.86+fi*0.055,0.44,0.95)+vec3(fi*0.035,-0.40,0.01+0.02*fi);
+    d=min(d,sdRC(p,b,b+vec3(0.0,-0.08,-0.03),0.022,0.005));
+  }
+  // exposed collarbone + ribs on chest left side
+  for(int i=0;i<4;i++){ float fi=float(i);
+    vec3 a=vec3(-0.18-fi*0.02,1.86-fi*0.11,0.62-fi*0.02);
+    vec3 b=vec3(-0.52+fi*0.02,1.80-fi*0.12,0.42);
+    d=min(d,sdCap(p,a,b,0.026));
+  }
+  return d;
+}
+
+float tongue(vec3 p){
+  vec3 t0=A+D*0.08;
+  vec3 t1=A+D*0.55+vec3(0.04,0.0,0.0);
+  vec3 t2=A+D*0.88+vec3(0.07,-0.20,-0.02);
+  vec3 t3=t2+vec3(0.02,-0.26,-0.06);
+  float d=sdRC(p,t0,t1,0.07,0.06);
+  d=smin(d,sdRC(p,t1,t2,0.06,0.05),0.03);
+  d=smin(d,sdRC(p,t2,t3,0.05,0.045),0.03);
+  return d;
+}
+float knot(vec3 p){
+  vec3 c=A+D*0.88+vec3(0.09,-0.53,-0.09);
+  float d=sdSph(p,c,0.10);
+  // teeth cluster
+  for(int i=0;i<8;i++){ float fi=float(i);
+    vec3 dir=normalize(vec3(sin(fi*2.39),cos(fi*1.7)*0.8,cos(fi*2.39)));
+    d=smin(d,sdRC(p,c+dir*0.08,c+dir*0.16,0.03,0.014),0.015);
+  }
+  return d;
+}
+
+float map(vec3 p){
+  float bound=sdEll(p,vec3(0.0,1.25,0.35),vec3(1.5,1.4,1.3));
+  float g=p.y;
+  if(bound>0.4){ gMat=4.0; return min(g,bound); }
+  float inner;
+  float dB=bell(p,inner);
+  float dBody=body(p);
+  float dBone=bones(p);
+  float dT=tongue(p);
+  float dK=knot(p);
+
+  // surface detail (only near surface)
+  float dd=min(min(dB,dBody),min(dBone,min(dT,dK)));
+  if(dd<0.06){
+    // body: skin with flayed muscle patches
+    float fl=smoothstep(0.55,0.60,fbm(p*1.7+vec3(3.0,0.0,0.0)));
+    gFlay=fl;
+    float skinD=0.016*fbm(p*6.0)+0.0035*abs(sin(p.y*45.0+fbm(p*5.0)*26.0))+0.0015*noise(p*60.0);
+    float dir=p.y*70.0+fbm(p*3.0)*14.0+p.x*25.0;
+    float musD=0.006*sin(dir)+0.008*fbm(p*9.0)-0.012;
+    dBody+=mix(skinD,musD,fl);
+    // bell: fused skull plates with empty sockets and sutures
+    float sock=smoothstep(0.60,0.70,noise(p*5.0));
+    float sut=0.006*(1.0-smoothstep(0.0,0.06,abs(noise(p*9.0)-0.5)));
+    dB+=0.05*sock+sut+0.006*fbm(p*20.0);
+    dBone+=0.004*fbm(p*30.0);
+    dK+=0.006*noise(p*40.0);
+    dT+=0.006*fbm(p*25.0);
+  }
+  float d=dBody; gMat=1.0;
+  if(dBone<d){d=dBone;gMat=2.0;}
+  if(dB<d){d=dB;gMat=(inner<0.0)?3.5:2.5;}
+  if(dT<d){d=dT;gMat=3.0;}
+  if(dK<d){d=dK;gMat=2.0;}
+  if(g<d){d=g;gMat=4.0;}
+  return d;
+}
+
+vec3 calcN(vec3 p){
+  vec2 e=vec2(0.0012,0.0);
+  return normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));
+}
+float shadow(vec3 ro,vec3 rd,float k){
+  float res=1.0,t=0.02;
+  for(int i=0;i<64;i++){ float h=map(ro+rd*t); res=min(res,k*h/t); t+=clamp(h,0.015,0.25); if(res<0.002||t>6.0)break; }
+  return clamp(res,0.0,1.0);
+}
+float ao(vec3 p,vec3 n){
+  float o=0.0,s=1.0;
+  for(int i=1;i<=6;i++){ float h=0.025*float(i*i); o+=(h-map(p+n*h))*s; s*=0.6; }
+  return clamp(1.0-1.6*o,0.0,1.0);
+}
+
+vec3 bgCol(vec2 uv){
+  float g=0.13-0.05*length(uv*vec2(0.9,0.7));
+  return vec3(g*1.02,g,g*0.98);
+}
+
+vec3 render(vec2 frag){
+  vec2 uv=(2.0*frag-uRes)/uRes.y;
+  vec3 ro=vec3(2.0,1.20,5.6);
+  vec3 ta=vec3(0.0,1.12,0.30);
+  vec3 ww=normalize(ta-ro); vec3 uu=normalize(cross(ww,vec3(0,1,0))); vec3 vv=cross(uu,ww);
+  vec3 rd=normalize(uv.x*uu+uv.y*vv+3.25*ww);
+
+  float t=0.5; float m=-1.0;
+  for(int i=0;i<260;i++){
+    vec3 p=ro+rd*t; float h=map(p);
+    if(abs(h)<0.0006*t){ m=gMat; break; }
+    t+=h*0.75; if(t>14.0)break;
+  }
+  vec3 bg=bgCol(uv);
+  if(m<0.0) return bg;
+  vec3 p=ro+rd*t;
+  map(p); m=gMat; float fl=gFlay;
+  vec3 n=calcN(p);
+  float occ=ao(p,n);
+
+  vec3 L=normalize(vec3(-0.55,0.85,0.55));   // key: upper left front
+  vec3 R=normalize(vec3(0.6,0.35,-0.9));     // cold rim from behind
+  vec3 H=normalize(L-rd);
+  float dif=clamp(dot(n,L),0.0,1.0);
+  float sh=shadow(p+n*0.004,L,10.0);
+  float rim=pow(clamp(1.0+dot(n,rd),0.0,1.0),2.5)*clamp(dot(n,R)+0.3,0.0,1.0);
+  float sky=0.5+0.5*n.y;
+
+  vec3 alb; float spec=0.0; float rough=64.0; float sss=0.0;
+  if(m<1.5){
+    // sallow skin vs flayed muscle
+    float mot=fbm(p*4.0);
+    vec3 skin=mix(vec3(0.14,0.135,0.11),vec3(0.25,0.235,0.19),mot);
+    skin=mix(skin,vec3(0.30,0.17,0.20),smoothstep(0.55,0.75,fbm(p*2.3+5.0))*0.7); // bruising
+    skin=mix(skin,vec3(0.25,0.22,0.18),smoothstep(0.2,0.6,fbm(p*25.0))*0.25);     // grime
+    float str=0.5+0.5*sin(p.y*70.0+fbm(p*3.0)*14.0+p.x*25.0);
+    vec3 mus=mix(vec3(0.07,0.012,0.012),vec3(0.24,0.045,0.035),0.4*str+0.6*fbm(p*11.0));
+    float edge=smoothstep(0.0,0.35,fl)*(1.0-smoothstep(0.65,1.0,fl));
+    alb=mix(skin,mus,fl);
+    alb=mix(alb,vec3(0.30,0.20,0.14),edge*0.7);          // fatty torn edge
+    // blood running down from the bell rim over chest and arms
+    float drip=smoothstep(0.62,0.80,noise(vec3(p.x*16.0,p.y*1.2,p.z*16.0)))*smoothstep(0.9,1.5,p.y)*smoothstep(-0.1,0.35,p.z);
+    float pool=smoothstep(0.55,0.75,fbm(p*3.5+2.0))*smoothstep(1.45,1.75,p.y)*smoothstep(0.1,0.5,p.z);
+    float bld=clamp(drip+pool,0.0,1.0);
+    alb=mix(alb,vec3(0.14,0.015,0.012),bld*0.9);
+    spec=mix(0.10,0.9,max(fl,bld)); rough=mix(18.0,90.0,max(fl,bld)); sss=mix(0.30,0.15,fl);
+  } else if(m<2.4){
+    float c=fbm(p*12.0);
+    alb=mix(vec3(0.45,0.40,0.30),vec3(0.62,0.56,0.44),c);
+    alb*=mix(1.0,0.55,smoothstep(0.45,0.8,fbm(p*6.0))); // dirt
+    spec=0.25; rough=24.0;
+  } else if(m<3.0){
+    // bell outer: old skull bone, stained dark near rim with dried blood
+    float c=fbm(p*10.0);
+    alb=mix(vec3(0.38,0.34,0.26),vec3(0.58,0.52,0.40),c);
+    vec3 q=p-A; float h=dot(q,D);
+    alb=mix(alb,vec3(0.16,0.05,0.04),smoothstep(0.62,0.95,h+0.25*fbm(p*5.0))*0.8);
+    float sock=smoothstep(0.60,0.70,noise(p*5.0));
+    alb*=1.0-0.85*sock;
+    spec=0.2; rough=20.0;
+  } else {
+    // wet flesh: tongue + bell interior
+    float c=fbm(p*8.0);
+    alb=mix(vec3(0.28,0.04,0.04),vec3(0.55,0.10,0.08),c);
+    spec=1.1; rough=110.0; sss=0.3;
+    if(m>3.4){ alb*=0.75; }
+  }
+  if(m>3.9){
+    // ground: neutral concrete
+    alb=vec3(0.13)*(0.85+0.3*fbm(vec3(p.xz*3.0,0.0)));
+    spec=0.05; rough=8.0;
+    // dried blood under planted hand and knot
+    float bl=smoothstep(0.35,0.0,length(p.xz-vec2(-0.86,0.80))-0.05*fbm(p*8.0));
+    bl+=smoothstep(0.22,0.0,length(p.xz-vec2(0.10,0.95))-0.04*fbm(p*9.0));
+    alb=mix(alb,vec3(0.12,0.02,0.02),clamp(bl,0.0,1.0)*0.85);
+  }
+
+  vec3 col=vec3(0.0);
+  col+=alb*dif*sh*vec3(1.25,1.15,1.05);
+  // wrap-around subsurface tint
+  float wrap=clamp((dot(n,L)+0.45)/1.45,0.0,1.0);
+  col+=alb*sss*wrap*vec3(1.2,0.25,0.15)*(0.4+0.6*sh);
+  col+=alb*sky*occ*vec3(0.13,0.145,0.18);
+  col+=alb*rim*occ*vec3(0.55,0.65,0.90)*1.4;
+  float sp=pow(clamp(dot(n,H),0.0,1.0),rough)*spec*dif*sh;
+  col+=sp*vec3(1.0,0.92,0.85)*(rough>60.0?2.2:0.8);
+  col*=0.35+0.65*occ;
+
+  float fog=1.0-exp(-0.012*t*t);
+  if(m>3.9) col=mix(col,bg,smoothstep(4.0,9.0,t));
+  return col;
+}
+
+void main(){
+  vec2 fc=gl_FragCoord.xy+uOff;
+  vec3 c=vec3(0.0);
+  for(int j=0;j<2;j++)for(int i=0;i<2;i++){
+    vec2 o=(vec2(float(i),float(j))-0.5)*0.5*uAA;
+    c+=render(fc+o);
+  }
+  c*=0.25;
+  // ACES tonemap + gamma
+  c=(c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14);
+  c=pow(clamp(c,0.0,1.0),vec3(1.0/2.2));
+  vec2 uv=fc/uRes; c*=0.55+0.45*pow(16.0*uv.x*uv.y*(1.0-uv.x)*(1.0-uv.y),0.2);
+  c+=(hash(vec3(fc,1.0))-0.5)*0.025;
+  gl_FragColor=vec4(c,1.0);
+}
+</script>
+<script>
+const W=+new URLSearchParams(location.search).get('w')||600;
+const Hh=Math.round(W*4/3);
+const cv=document.getElementById('c'); cv.width=W; cv.height=Hh;
+const gl=cv.getContext('webgl',{preserveDrawingBuffer:true,antialias:false});
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o));return o;}
+const pr=gl.createProgram();
+gl.attachShader(pr,sh(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}'));
+gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,document.getElementById('fs').textContent));
+gl.linkProgram(pr); if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(pr));
+gl.useProgram(pr);
+const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const loc=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+gl.uniform2f(gl.getUniformLocation(pr,'uRes'),W,Hh);
+gl.uniform2f(gl.getUniformLocation(pr,'uOff'),0,0);
+gl.uniform1f(gl.getUniformLocation(pr,'uAA'),1.0);
+gl.enable(gl.SCISSOR_TEST);
+const T=100; const tiles=[];
+for(let y=0;y<Hh;y+=T)for(let x=0;x<W;x+=T)tiles.push([x,y]);
+let k=0;
+function step(){
+  if(k>=tiles.length){window.DONE=true;return;}
+  const [x,y]=tiles[k++]; gl.scissor(x,y,T,T); gl.drawArrays(gl.TRIANGLE_STRIP,0,4); gl.finish();
+  setTimeout(step,0);
+}
+step();
+</script></body></html>

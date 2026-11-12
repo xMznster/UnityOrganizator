@@ -69,16 +69,22 @@ Anforderungen:
 
 Das Design muss bereits wie eine fertige Kreatur aus einem professionellen Indie-Horror-Spiel wirken und nicht wie eine grobe Skizze oder ein unfertiger Entwurf.
 
-**Lieferumfang Phase 1** (da Claude selbst keine Bilder malt):
+**Umsetzung Phase 1 – das Bild wird IMMER wirklich erzeugt, nicht nur beschrieben:**
 
-1. **Name & Kernidee** – ein Satz, was die Kreatur ist.
-2. **Signature Feature** – das eine unverwechselbare Merkmal (siehe Abschnitt 5).
-3. **Silhouette & Proportionen** – Größe, Gewicht, Haltung, Verhältnis der Körperteile.
-4. **Anatomie im Detail** – Kopf, Torso, Gliedmaßen, Gelenke, Knochen/Fleisch/Haut-Zonen.
-5. **Farbpalette & Materialien** – konkrete Farbwerte (Hex) und Oberflächenbeschreibung.
-6. **Bewegung, Geräusch, Verhalten** – wie sie sich bewegt, klingt und den Spieler verfolgt.
-7. **Bildgenerator-Prompt** (Englisch) – präziser Prompt für ein Bild-KI-Tool, das alle Anforderungen oben erfüllt (full body, head to toe, neutral grey background, studio lighting, no text …), plus optionaler Front-/Side-View-Prompt als Modelling-Sheet.
-8. Optional: **SVG-Silhouette** als schnelle Formprüfung, wenn der Nutzer das möchte.
+- Kein Blender und kein Bildgenerator vorhanden → die Kreatur als **3D-SDF-Raymarching-Render** bauen (WebGL-Fragment-Shader in einer HTML-Datei, gerendert mit dem vorinstallierten Chromium/Playwright über SwiftShader).
+  - Vorlage: `creatures/kloeppel/kloeppel_render.html` (Primitive, Smooth-Union, Materialien Haut/Muskel/Knochen/nasses Fleisch, Soft Shadows, AO, Rim-Light, ACES-Tonemapping).
+  - Chromium-Flags: `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --disable-gpu-watchdog`; in Kacheln rendern (Scissor + `gl.finish()`), Bild über `canvas.toDataURL()` speichern (Element-Screenshot läuft bei großen Canvas in Timeouts).
+  - Iterieren bei 450 px Breite (~30 s), finales Bild in 1200×1600 (~3 min).
+- **NIEMALS flache SVG-/Vektor-Illustrationen** für Concepts verwenden – weiche Verläufe auf flachen Formen sehen aus wie Plüschtiere. Glaubwürdigkeit kommt aus Licht: harte Schatten, Ambient Occlusion, nasse Glanzlichter, Rim-Light, dunkle, entsättigte Albedo-Werte.
+- Jeden Render selbst ansehen und kritisch prüfen (Plüsch-/Stoff-Look? Silhouette lesbar? abgeschnitten? überbelichtet?) und nachbessern, bevor er dem Nutzer gezeigt wird.
+
+**Lieferumfang Phase 1:**
+
+1. **Fertiges Concept-Bild** (PNG, Ganzkörper, neutraler Hintergrund) unter `creatures/<name>/`.
+2. **Name & Kernidee**, **Signature Feature**, Silhouette & Proportionen, Anatomie, Farbpalette (Hex), Bewegung/Geräusch/Verhalten – als `README.md` neben dem Bild.
+3. Optional: englischer Prompt für externe Bild-KI-Tools, falls der Nutzer zusätzlich gemalte Varianten möchte.
+
+Bei Ablehnung: Ordner der verworfenen Kreatur löschen und eine **komplett neue Richtung** wählen.
 
 ### PHASE 2 – 3D BLENDER DEVELOPMENT
 
