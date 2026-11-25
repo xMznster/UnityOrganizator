@@ -14,7 +14,8 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  // Only our own caches: the Organizator app (board/) shares this origin and keeps its own "org-" cache.
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("uv-") && k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (e) => {
