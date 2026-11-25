@@ -29,7 +29,9 @@ jobs:
       - name: Tests (core modules)
         run: node --test web/test/*.test.mjs
       - name: Stamp service worker version (forces update on iPhones)
-        run: sed -i "s/const VERSION = \".*\";/const VERSION = \"uv-${GITHUB_SHA::8}\";/" web/sw.js
+        run: |
+          sed -i "s/const VERSION = \".*\";/const VERSION = \"uv-${GITHUB_SHA::8}\";/" web/sw.js
+          sed -i "s/const VERSION = \".*\";/const VERSION = \"org-${GITHUB_SHA::8}\";/" web/board/sw.js
       - uses: actions/configure-pages@v5
         with:
           enablement: true

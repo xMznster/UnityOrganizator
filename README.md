@@ -17,6 +17,21 @@ Ideen, Prompts, technische Notizen und C#-Skripte unterwegs sammeln, bearbeiten,
 | **Sync iPhone ⇄ PC** | Zwei-Wege-Sync mit einem Ordner (iCloud Drive, Working Copy = echtes Git, OneDrive …) oder direkt mit einem GitHub-Repository; Konflikte verlieren nie Inhalte |
 | **Claude** | Agent-Skill-Generator (SKILL.md), Kontext-Pakete, CLAUDE.md-Snippet, MCP-Server für Claude Code (Suchen, Lesen, Prompts) |
 
+## Organizator – Boards wie Trello (`web/board/`)
+
+Eigenständige, minimalistische Board-App (PWA) im selben Repository: **https://xmznster.github.io/UnityOrganizator/board/** → in Safari „Zum Home-Bildschirm“.
+
+| | |
+|---|---|
+| **Boards, Listen, Karten** | Beliebig viele Boards (Vorlagen: Kanban, Projekt, Woche, Leer), Favoriten, Listen umbenennen/kopieren/verschieben, Karten per Drag & Drop – Maus ziehen, auf dem Handy kurz gedrückt halten |
+| **Karten** | Titel, Beschreibung, Labels, Fälligkeitsdatum (Heute/Morgen/überfällig farbig), Checkliste mit Fortschritt, Farbe, erledigt-Haken, duplizieren, löschen mit „Rückgängig“ |
+| **Übersicht** | Filter nach Text, Labels, „Bald fällig“, „Erledigte ausblenden“; Startseite mit Mini-Vorschau und Zählern je Board |
+| **Darstellung** | Hell/Dunkel/Auto, 10 Akzentfarben + eigene, 13 Board-Hintergründe (sanft oder kräftig), Schriftart (System/Rund/Serif/Mono) und -größe, Dichte, Kartenstil, Eckenradius, Listenbreite, Labels als Balken oder mit Namen, Badges ein/aus, Animationen – alles mit Live-Vorschau |
+| **Speichern** | Jede Änderung wird automatisch lokal gespeichert (offline), Rückgängig/Wiederholen (⌘/Strg+Z), tägliche automatische Sicherungspunkte + eigene, Export/Import als JSON (Hinzufügen oder Ersetzen), einzelne Boards exportieren |
+
+Tastatur: `N` neue Karte/neues Board · `F` oder `/` filtern · `Esc` schließen · `⌘/Strg+S` sofort speichern.
+Lokal starten: `cd web && python3 -m http.server 8000` → http://localhost:8000/board/ · Tests: `node --test web/test/board.test.mjs`
+
 ## Zwei Varianten
 
 | | **Web-App (PWA) – `web/`** | **Native App (Swift) – `App/`** |
@@ -33,6 +48,7 @@ Ideen, Prompts, technische Notizen und C#-Skripte unterwegs sammeln, bearbeiten,
 
 ```
 web/                        PWA: index.html, styles.css, sw.js (offline), js/core (Analyse, Suche, Sync …), js/ui
+  board/                    Organizator: Board-App (Listen & Karten), eigener Service Worker
 UnityVault.xcodeproj        Xcode-Projekt (Xcode 16+, öffnen & starten)
 App/                        iOS-App (SwiftUI + SwiftData)
   Models/                   Folder, VaultItem, Revision (SwiftData)
